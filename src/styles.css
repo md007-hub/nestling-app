@@ -1,0 +1,245 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Nestling design system — warm neutral daylight, soft slate night.
+ * All colors are oklch semantic tokens. Never hardcode colors in components.
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 6px);
+  --radius-md: calc(var(--radius) - 3px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 6px);
+  --radius-2xl: calc(var(--radius) + 12px);
+  --radius-3xl: calc(var(--radius) + 18px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-feed: var(--feed);
+  --color-feed-foreground: var(--feed-foreground);
+  --color-diaper: var(--diaper);
+  --color-diaper-foreground: var(--diaper-foreground);
+  --color-sleep: var(--sleep);
+  --color-sleep-foreground: var(--sleep-foreground);
+  --color-feed-tint: var(--feed-tint);
+  --color-diaper-tint: var(--diaper-tint);
+  --color-sleep-tint: var(--sleep-tint);
+  --color-tummy: var(--tummy);
+  --color-tummy-foreground: var(--tummy-foreground);
+  --color-tummy-tint: var(--tummy-tint);
+  --color-sky: var(--sky);
+  --color-sky-foreground: var(--sky-foreground);
+  --color-sage: var(--sage);
+  --color-sage-foreground: var(--sage-foreground);
+  --color-sage-strong: var(--sage-strong);
+  --color-peach: var(--peach);
+  --color-peach-foreground: var(--peach-foreground);
+  --color-lilac: var(--lilac);
+  --color-lilac-foreground: var(--lilac-foreground);
+  --color-rose: var(--rose);
+  --color-rose-foreground: var(--rose-foreground);
+  --color-online: var(--online);
+  --color-offline: var(--offline);
+  --color-logo: var(--logo);
+  --color-logo-sage: var(--logo-sage);
+  --color-logo-amber: var(--logo-amber);
+  --color-logo-amber-dark: var(--logo-amber-dark);
+  --color-logo-cream: var(--logo-cream);
+  --color-logo-ink: var(--logo-ink);
+  --color-welcome-ink: var(--welcome-ink);
+  --font-display: "Quicksand", ui-rounded, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --shadow-soft: 0 4px 20px -2px rgb(90 70 50 / 0.05), 0 1px 2px rgb(90 70 50 / 0.04);
+  --shadow-lift: 0 2px 6px oklch(0.4 0.03 250 / 0.1), 0 16px 40px oklch(0.4 0.03 250 / 0.12);
+}
+
+:root {
+  --radius: 1.125rem;
+  --background: #FAF7F2;
+  --foreground: oklch(0.29 0.025 255);
+  --card: #FFFFFF;
+  --card-foreground: oklch(0.29 0.025 255);
+  --popover: oklch(0.995 0.005 85);
+  --popover-foreground: oklch(0.29 0.025 255);
+  --primary: oklch(0.58 0.1 42);
+  --primary-foreground: oklch(0.985 0.008 85);
+  --secondary: oklch(0.945 0.016 80);
+  --secondary-foreground: oklch(0.34 0.03 255);
+  --muted: oklch(0.948 0.012 82);
+  --muted-foreground: oklch(0.52 0.022 255);
+  --accent: oklch(0.905 0.045 65);
+  --accent-foreground: oklch(0.31 0.04 60);
+  --destructive: oklch(0.57 0.18 25);
+  --destructive-foreground: oklch(0.985 0.008 85);
+  --border: oklch(0.9 0.014 80);
+  --input: oklch(0.9 0.014 80);
+  --ring: oklch(0.64 0.09 42);
+  --feed: oklch(0.87 0.07 75);
+  --feed-foreground: oklch(0.33 0.06 60);
+  --diaper: oklch(0.87 0.055 165);
+  --diaper-foreground: oklch(0.31 0.05 165);
+  --sleep: oklch(0.86 0.055 275);
+  --sleep-foreground: oklch(0.33 0.06 280);
+  --feed-tint: #FBF4EB;
+  --sleep-tint: #F4F0FA;
+  --diaper-tint: #EFF5F1;
+  --tummy-tint: #FAF0EC;
+  --tummy: oklch(0.85 0.07 40);
+  --tummy-foreground: oklch(0.38 0.08 35);
+  --sky: oklch(0.925 0.04 235);
+  --sky-foreground: oklch(0.3 0.06 245);
+  --sage: oklch(0.925 0.045 150);
+  --sage-foreground: oklch(0.3 0.05 155);
+  --peach: oklch(0.925 0.05 55);
+  --peach-foreground: oklch(0.34 0.07 45);
+  --lilac: oklch(0.92 0.045 300);
+  --lilac-foreground: oklch(0.32 0.07 300);
+  --rose: oklch(0.92 0.045 15);
+  --rose-foreground: oklch(0.34 0.08 15);
+  --online: oklch(0.6 0.13 160);
+  --offline: oklch(0.72 0.13 80);
+  --logo: oklch(0.96 0.012 85);
+  --logo-sage: oklch(0.66 0.07 145);
+  --logo-amber: oklch(0.73 0.12 73);
+  --logo-amber-dark: oklch(0.59 0.12 65);
+  --logo-cream: oklch(0.97 0.018 86);
+  --logo-ink: oklch(0.42 0.06 160);
+  --welcome-ink: #2C3E50;
+  --sage-strong: #88AB8E;
+}
+
+.dark {
+  --background: #121620;
+  --foreground: oklch(0.96 0.008 85);
+  --card: oklch(0.235 0.008 270);
+  --card-foreground: oklch(0.96 0.008 85);
+  --popover: oklch(0.235 0.008 270);
+  --popover-foreground: oklch(0.96 0.008 85);
+  --primary: oklch(0.74 0.09 45);
+  --primary-foreground: oklch(0.2 0.01 270);
+  --secondary: oklch(0.29 0.008 270);
+  --secondary-foreground: oklch(0.95 0.008 85);
+  --muted: oklch(0.28 0.008 270);
+  --muted-foreground: oklch(0.76 0.01 270);
+  --accent: oklch(0.32 0.01 270);
+  --accent-foreground: oklch(0.95 0.02 80);
+  --destructive: oklch(0.65 0.17 25);
+  --destructive-foreground: oklch(0.98 0.008 85);
+  --border: oklch(1 0 0 / 14%);
+  --input: oklch(1 0 0 / 18%);
+  --ring: oklch(0.7 0.08 45);
+  --feed: oklch(0.42 0.07 70);
+  --feed-foreground: oklch(0.95 0.03 80);
+  --diaper: oklch(0.4 0.06 165);
+  --diaper-foreground: oklch(0.95 0.03 165);
+  --sleep: oklch(0.4 0.06 278);
+  --sleep-foreground: oklch(0.95 0.03 280);
+  --feed-tint: oklch(0.25 0.012 70);
+  --sleep-tint: oklch(0.255 0.035 278);
+  --diaper-tint: oklch(0.25 0.012 165);
+  --tummy-tint: oklch(0.25 0.012 40);
+  --tummy: oklch(0.42 0.07 40);
+  --tummy-foreground: oklch(0.95 0.03 40);
+  --sky: oklch(0.78 0.08 235 / 0.16);
+  --sky-foreground: oklch(0.92 0.04 235);
+  --sage: oklch(0.78 0.08 150 / 0.15);
+  --sage-foreground: oklch(0.92 0.045 150);
+  --peach: oklch(0.8 0.08 55 / 0.15);
+  --peach-foreground: oklch(0.93 0.045 60);
+  --lilac: oklch(0.78 0.08 300 / 0.16);
+  --lilac-foreground: oklch(0.92 0.04 300);
+  --rose: oklch(0.78 0.08 15 / 0.16);
+  --rose-foreground: oklch(0.92 0.04 15);
+  --online: oklch(0.75 0.15 160);
+  --offline: oklch(0.82 0.14 85);
+  --logo: oklch(0.3 0.008 270);
+  --logo-sage: oklch(0.56 0.075 145);
+  --logo-amber: oklch(0.67 0.12 73);
+  --logo-amber-dark: oklch(0.52 0.11 65);
+  --logo-cream: oklch(0.95 0.02 86);
+  --logo-ink: oklch(0.27 0.035 145);
+  --welcome-ink: oklch(0.96 0.008 85);
+  --sage-strong: oklch(0.74 0.07 150);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    overscroll-behavior-y: none;
+  }
+
+  /* Autofill blends into the cream/charcoal theme instead of browser blue */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--color-foreground);
+    -webkit-box-shadow: 0 0 0 1000px var(--color-card) inset;
+    transition: background-color 9999s ease-out 0s;
+    caret-color: var(--color-foreground);
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
+}
+
+@utility tap-card {
+  border-radius: var(--radius-xl);
+  transition:
+    transform 140ms ease,
+    box-shadow 140ms ease;
+
+  &:active {
+    transform: scale(0.98);
+  }
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+#lovable-badge {
+  display: none !important;
+}
+
+body {
+  padding-top: max(env(safe-area-inset-top), 24px);
+  padding-bottom: env(safe-area-inset-bottom);
+}
