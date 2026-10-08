@@ -33,7 +33,7 @@ jobs:
       - name: Build iOS App with Xcode (No Signing)
         run: |
           xcodebuild build \
-            -workspace ios/App/App.xcworkspace \
+            -project ios/App/App.xcodeproj \
             -scheme App \
             -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO
