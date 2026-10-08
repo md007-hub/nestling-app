@@ -15,6 +15,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Select Xcode 16
+        run: sudo xcode-select -s /Applications/Xcode_16.0.app/Contents/Developer
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -30,10 +33,17 @@ jobs:
       - name: Sync Capacitor iOS project
         run: npx cap sync ios
 
-      - name: Build iOS App with Xcode (No Signing)
+      - name: Resolve Swift Packages
         run: |
-          xcodebuild build \
+          xcodebuild -resolvePackageDependencies \
+            -project ios/App/App.xcodeproj \
+            -scheme App
+
+      - name: Build iOS App with Xcode (Filtered Output)
+        run: |
+          set -o pipefail && xcodebuild build \
             -project ios/App/App.xcodeproj \
             -scheme App \
             -destination 'generic/platform=iOS Simulator' \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO \
+            | grep -E 'error:|fatal:|warning:|BUILD FAILED' || true
