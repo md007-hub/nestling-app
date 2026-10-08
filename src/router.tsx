@@ -2,6 +2,8 @@ import { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 import { App as CapApp } from "@capacitor/app";
+import { initAdMob, showBannerAd } from "./lib/admob";
+import { initPurchases } from "./lib/purchases";
 
 // After a new publish, an open tab may request page files that no longer exist.
 // Reload once to pick up the latest version instead of showing a blank screen.
@@ -32,6 +34,8 @@ export const getRouter = () => {
 
   if (typeof window !== "undefined" && !(window as any).__nestlingBackRegistered) {
     (window as any).__nestlingBackRegistered = true;
+
+    // Handle Android hardware back button
     CapApp.addListener("backButton", ({ canGoBack }) => {
       if (canGoBack || window.history.length > 1) {
         window.history.back();
@@ -39,6 +43,16 @@ export const getRouter = () => {
         CapApp.exitApp();
       }
     });
+
+    // Initialize Monetization (AdMob & In-App Purchases)
+    (async () => {
+      await Promise.all([
+        initAdMob(),
+        initPurchases(),
+      ]);
+      // Show default banner ad on mobile app load
+      await showBannerAd();
+    })();
   }
 
   return router;
