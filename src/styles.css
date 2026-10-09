@@ -243,3 +243,12 @@ body {
   padding-top: max(env(safe-area-inset-top), 24px);
   padding-bottom: env(safe-area-inset-bottom);
 }
+#lovable-badge,
+[id*="lovable"],
+[class*="lovable"],
+a[href*="lovable.dev"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
