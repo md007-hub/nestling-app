@@ -27,7 +27,7 @@ jobs:
         run: |
           cd ios/App
           xcodebuild -scheme App \
-            -workspace App.xcworkspace \
+            -project App.xcodeproj \
             -destination 'generic/platform=iOS' \
             -configuration Release \
             CODE_SIGNING_ALLOWED=NO \
