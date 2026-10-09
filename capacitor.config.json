@@ -3,7 +3,7 @@
   "appName": "Nestling",
   "webDir": "dist/client",
   "server": {
-    "url": "https://nestling-app.lovable.app",
+    "url": "https://nestling-app.md007syed007.workers.dev",
     "cleartext": false
   }
 }
