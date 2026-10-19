@@ -26,7 +26,7 @@ export function ExportPdfButton() {
       <Button
         type="button"
         variant="secondary"
-        onClick={() => (isPro ? void download() : setSheet(true))}
+        onClick={() => setSheet(true)}
         className="mb-4 h-11 w-full rounded-xl"
       >
         <FileText /> Export Doctor PDF

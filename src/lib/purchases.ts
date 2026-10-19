@@ -1,9 +1,8 @@
 import { Purchases, PurchasesPackage, CustomerInfo } from '@revenuecat/purchases-capacitor';
 import { Capacitor } from '@capacitor/core';
 
-// Replace with your public API keys from app.revenuecat.com
-const REVENUECAT_APPLE_KEY = 'appl_placeholder_api_key';
-const REVENUECAT_GOOGLE_KEY = 'goog_placeholder_api_key';
+const REVENUECAT_APPLE_KEY = import.meta.env.VITE_REVENUECAT_APPLE_KEY || 'appl_placeholder_api_key';
+const REVENUECAT_GOOGLE_KEY = 'goog_JiDPWtsleJaGHEHYslElOicJtCe';
 
 export const initPurchases = async (userId?: string) => {
   if (!Capacitor.isNativePlatform()) return;
@@ -57,5 +56,5 @@ export const restorePurchases = async (): Promise<boolean> => {
 };
 
 export const checkEntitlement = (customerInfo: CustomerInfo, entitlementId = 'premium'): boolean => {
-  return typeof customerInfo.entitlements.active[entitlementId] !== 'undefined';
+  return typeof customerInfo?.entitlements?.active?.[entitlementId] !== 'undefined';
 };

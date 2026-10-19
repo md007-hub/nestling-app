@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { BookOpen, Copy, CreditCard, FileText, Lock, LogOut, Sparkles, Users } from "lucide-react";
+import { BookOpen, Copy, CreditCard, Crown, FileText, Lock, LogOut, PlayCircle, Sparkles, Users } from "lucide-react";
 import { usePro } from "@/hooks/usePro";
 import { createPortalSession } from "@/lib/payments.functions";
 import { getStripeEnvironment } from "@/lib/stripe";
@@ -121,7 +121,6 @@ function FamilyPage() {
       setBusy(false);
     }
   };
-
 
   const join = () => {
     if (caregiverLimitReached) {
@@ -287,9 +286,10 @@ function FamilyPage() {
 }
 
 function ProSection({ babyName }: { babyName: string | null }) {
-  const { isPro, ownSub, openUpgrade, testPro, canTestPro, setTestPro } = usePro();
+  const { isPro, ownSub, openUpgrade, watchRewardedAd, testPro, canTestPro, setTestPro } = usePro();
   const lifetime = ownSub?.price_id === "pro_lifetime";
   const [busy, setBusy] = useState(false);
+  const [adSheet, setAdSheet] = useState(false);
 
   const manage = async () => {
     const tab = window.open("", "_blank");
@@ -309,13 +309,20 @@ function ProSection({ babyName }: { babyName: string | null }) {
     }
   };
 
-  const exportPdf = async () => {
-    if (!isPro) return openUpgrade("The Doctor PDF export is part of Nestling Pro.");
+  const downloadPdf = async () => {
     try {
       await exportDoctorPdf(babyName);
       toast.success("Report downloaded");
     } catch {
       toast.error("Couldn't create the report");
+    }
+  };
+
+  const onExportPdfClick = () => {
+    if (isPro) {
+      void downloadPdf();
+    } else {
+      setAdSheet(true);
     }
   };
 
@@ -343,7 +350,7 @@ function ProSection({ babyName }: { babyName: string | null }) {
           : "Unlimited Nanny AI, all sleep sounds and doctor-ready reports."}
       </p>
 
-      <Button variant="secondary" onClick={exportPdf} className="h-12 w-full justify-start text-base">
+      <Button variant="secondary" onClick={onExportPdfClick} className="h-12 w-full justify-start text-base">
         <FileText /> Doctor PDF export (last 7 days)
         {!isPro && <Lock className="ml-auto text-muted-foreground" />}
       </Button>
@@ -366,6 +373,45 @@ function ProSection({ babyName }: { babyName: string | null }) {
           <CreditCard /> Manage Subscription
         </Button>
       )}
+
+      <Dialog open={adSheet} onOpenChange={setAdSheet}>
+        <DialogContent className="rounded-3xl sm:max-w-sm">
+          <DialogHeader className="text-left">
+            <DialogTitle className="font-display text-xl">Export Doctor PDF</DialogTitle>
+            <DialogDescription>Choose how you'd like to unlock this report.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2.5">
+            <button
+              type="button"
+              onClick={() => {
+                setAdSheet(false);
+                watchRewardedAd(downloadPdf);
+              }}
+              className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left transition active:scale-[0.98]"
+            >
+              <PlayCircle className="h-7 w-7 shrink-0 text-primary" />
+              <span>
+                <span className="block font-semibold">Watch a quick ad</span>
+                <span className="block text-xs text-muted-foreground">Free single export</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAdSheet(false);
+                openUpgrade("The Doctor PDF export is part of Nestling Pro.");
+              }}
+              className="flex w-full items-center gap-3 rounded-2xl border border-primary bg-primary/10 p-4 text-left transition active:scale-[0.98]"
+            >
+              <Crown className="h-7 w-7 shrink-0 text-primary" />
+              <span>
+                <span className="block font-semibold">Upgrade to PRO</span>
+                <span className="block text-xs text-muted-foreground">Instant unlimited exports</span>
+              </span>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

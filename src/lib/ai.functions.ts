@@ -23,46 +23,84 @@ plain language. Use markdown sparingly — short paragraphs or brief bullet list
 Always remind the parent to contact their pediatrician or emergency services for anything urgent,
 medical, or concerning (fever, breathing trouble, dehydration, injury). Never diagnose. For fever, health worries or emergencies, calmly direct them to their pediatrician.`;
 
+function getGeminiKey(): string | undefined {
+  const g = globalThis as Record<string, any>;
+  return (
+    process.env["GEMINI_API_KEY"] ||
+    g["GEMINI_API_KEY"] ||
+    g?.env?.["GEMINI_API_KEY"] ||
+    g?.__env__?.["GEMINI_API_KEY"]
+  );
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export const askBabyAi = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => schema.parse(data))
   .handler(async ({ data }) => {
-    const apiKey = process.env["LOVABLE_API_KEY"];
-    if (!apiKey) throw new Error("AI is not configured yet.");
-
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3.8-flash",
-        messages: [
-          {
-            role: "system",
-            content: data.context
-              ? `${SYSTEM_PROMPT}\n\n## Baby's tracker data\n${data.context}`
-              : SYSTEM_PROMPT,
-          },
-          ...data.messages,
-        ],
-      }),
-    });
-
-    if (res.status === 429) {
-      return { reply: "Too many questions at once — please try again in a moment." };
+    const apiKey = getGeminiKey();
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY is not configured in Cloudflare or .env");
     }
-    if (res.status === 402) {
-      return { reply: "The AI assistant is out of credits. Please top up to keep chatting." };
+
+    const systemInstruction = data.context
+      ? `${SYSTEM_PROMPT}\n\n## Baby's tracker data\n${data.context}`
+      : SYSTEM_PROMPT;
+
+    const contents = data.messages.map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }],
+    }));
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
+    const payload = {
+      system_instruction: { parts: [{ text: systemInstruction }] },
+      contents,
+    };
+
+    let res: Response | null = null;
+    let attempts = 0;
+
+    // Retry up to 3 times if Google returns temporary 503 or 429
+    while (attempts < 3) {
+      attempts++;
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.status !== 503 && res.status !== 429) {
+        break;
+      }
+
+      if (attempts < 3) {
+        await sleep(1500 * attempts);
+      }
     }
+
+    if (!res) {
+      throw new Error("Network request could not be completed.");
+    }
+
+    if (res.status === 429 || res.status === 503) {
+      return {
+        reply: "Nanny AI is experiencing heavy traffic right now — please try again in just a moment!",
+      };
+    }
+
     if (!res.ok) {
-      throw new Error(`AI request failed (${res.status})`);
+      const errText = await res.text();
+      throw new Error(`Gemini API error (${res.status}): ${errText}`);
     }
 
     const json = (await res.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
     };
+
     return {
-      reply: json.choices?.[0]?.message?.content ?? "Sorry, I couldn't come up with an answer.",
+      reply:
+        json.candidates?.[0]?.content?.parts?.[0]?.text ??
+        "Sorry, I couldn't come up with an answer.",
     };
   });

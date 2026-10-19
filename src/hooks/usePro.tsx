@@ -1,9 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
 import { supabase } from "@/integrations/supabase/client";
 import { useFamily } from "@/hooks/useFamily";
 import { tryStripeEnvironment } from "@/lib/stripe";
 import { UpgradeModal } from "@/components/UpgradeModal";
+import { showRewardedAd } from "@/lib/admob";
 
 export type OwnSub = { status: string; price_id: string; current_period_end: string | null; cancel_at_period_end: boolean | null };
 
@@ -95,54 +97,109 @@ export function ProProvider({ children }: { children: ReactNode }) {
 
   const refreshQuota = useCallback(async () => {
     const day = todayKey();
+    const storageKey = user ? `nestling-ai-${user.id}-${day}` : `nestling-ai-${day}`;
+    const bonusKey = user ? `nestling-ai-bonus-${user.id}-${day}` : `nestling-ai-bonus-${day}`;
+
     if (user) {
-      const { data } = await supabase.from("ai_usage").select("count, bonus").eq("user_id", user.id).eq("day", day).maybeSingle();
-      setRemaining(Math.max(0, FREE_AI_DAILY + (data?.bonus ?? 0) - (data?.count ?? 0)));
-    } else {
-      const used = Number(localStorage.getItem(`nestling-ai-${day}`) ?? 0);
-      const bonus = Number(localStorage.getItem(`nestling-ai-bonus-${day}`) ?? 0);
-      setRemaining(Math.max(0, FREE_AI_DAILY + bonus - used));
+      try {
+        const { data, error } = await supabase
+          .from("ai_usage")
+          .select("count, bonus")
+          .eq("user_id", user.id)
+          .eq("day", day)
+          .maybeSingle();
+
+        if (!error && data) {
+          setRemaining(Math.max(0, FREE_AI_DAILY + (data?.bonus ?? 0) - (data?.count ?? 0)));
+          return;
+        }
+      } catch (e) {
+        console.warn("Supabase refreshQuota failed, using local storage:", e);
+      }
     }
+
+    const used = Number(localStorage.getItem(storageKey) ?? 0);
+    const bonus = Number(localStorage.getItem(bonusKey) ?? 0);
+    setRemaining(Math.max(0, FREE_AI_DAILY + bonus - used));
   }, [user]);
 
   const consumeQuestion = useCallback(async () => {
     if (isPro) return true;
     const day = todayKey();
+
     if (user) {
-      const { data, error } = await supabase.rpc("consume_ai_question", {
-        check_env: tryStripeEnvironment() ?? "sandbox",
-        _day: day,
-      });
-      if (error) return false;
-      const res = data as { allowed?: boolean; remaining?: number | null } | null;
-      if (typeof res?.remaining === "number") setRemaining(res.remaining);
-      return !!res?.allowed;
+      try {
+        const { data, error } = await supabase.rpc("consume_ai_question", {
+          check_env: tryStripeEnvironment() ?? "sandbox",
+          _day: day,
+        });
+        if (!error && data) {
+          const res = data as { allowed?: boolean; remaining?: number | null };
+          if (typeof res?.remaining === "number") {
+            setRemaining(res.remaining);
+            return !!res?.allowed;
+          }
+        }
+      } catch (e) {
+        console.warn("Supabase consume_ai_question failed, falling back to local storage:", e);
+      }
     }
-    const used = Number(localStorage.getItem(`nestling-ai-${day}`) ?? 0);
-    const bonus = Number(localStorage.getItem(`nestling-ai-bonus-${day}`) ?? 0);
-    if (used >= FREE_AI_DAILY + bonus) return false;
-    localStorage.setItem(`nestling-ai-${day}`, String(used + 1));
-    setRemaining(FREE_AI_DAILY + bonus - used - 1);
+
+    // Local fallback for guest users or when Supabase RPC is unavailable
+    const storageKey = user ? `nestling-ai-${user.id}-${day}` : `nestling-ai-${day}`;
+    const bonusKey = user ? `nestling-ai-bonus-${user.id}-${day}` : `nestling-ai-bonus-${day}`;
+
+    const used = Number(localStorage.getItem(storageKey) ?? 0);
+    const bonus = Number(localStorage.getItem(bonusKey) ?? 0);
+    const maxAllowed = FREE_AI_DAILY + bonus;
+
+    if (used >= maxAllowed) {
+      setRemaining(0);
+      return false;
+    }
+
+    const nextUsed = used + 1;
+    localStorage.setItem(storageKey, String(nextUsed));
+    const nextRemaining = Math.max(0, maxAllowed - nextUsed);
+    setRemaining(nextRemaining);
     return true;
   }, [isPro, user]);
 
   const grantAiBonus = useCallback(async () => {
     const day = todayKey();
+    const bonusKey = user ? `nestling-ai-bonus-${user.id}-${day}` : `nestling-ai-bonus-${day}`;
+
     if (user) {
-      await supabase.rpc("grant_ai_bonus", { _day: day });
-    } else {
-      const k = `nestling-ai-bonus-${day}`;
-      localStorage.setItem(k, String(Number(localStorage.getItem(k) ?? 0) + 3));
+      try {
+        await supabase.rpc("grant_ai_bonus", { _day: day });
+      } catch (e) {
+        console.warn("Supabase grant_ai_bonus failed, using local storage:", e);
+      }
     }
+
+    const currentBonus = Number(localStorage.getItem(bonusKey) ?? 0);
+    localStorage.setItem(bonusKey, String(currentBonus + 3));
+
     await refreshQuota();
   }, [user, refreshQuota]);
 
-  const watchRewardedAd = useCallback((onReward: () => void | Promise<void>) => {
-    setAdPlaying(true);
-    window.setTimeout(() => {
-      setAdPlaying(false);
-      void onReward();
-    }, 2000);
+  const watchRewardedAd = useCallback(async (onReward: () => void | Promise<void>) => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const rewarded = await showRewardedAd();
+        if (rewarded) {
+          await onReward();
+        }
+      } catch (err) {
+        console.error("AdMob rewarded ad error:", err);
+      }
+    } else {
+      setAdPlaying(true);
+      window.setTimeout(() => {
+        setAdPlaying(false);
+        void onReward();
+      }, 2000);
+    }
   }, []);
 
   useEffect(() => {

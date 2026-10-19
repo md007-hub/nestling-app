@@ -1,13 +1,22 @@
-import { AdMob, BannerAdOptions, BannerAdSize, BannerAdPosition, AdmobConsentStatus } from '@capacitor-community/admob';
+import {
+  AdMob,
+  AdmobConsentStatus,
+  RewardAdOptions,
+  RewardAdPluginEvents,
+} from '@capacitor-community/admob';
 import { Capacitor } from '@capacitor/core';
 
+let isInitialized = false;
+
 export const initAdMob = async () => {
-  if (!Capacitor.isNativePlatform()) return;
+  if (!Capacitor.isNativePlatform() || isInitialized) return;
 
   try {
     await AdMob.initialize({
       initializeForTesting: true,
     });
+
+    await AdMob.setApplicationMuted({ muted: true });
 
     const [trackingInfo, consentInfo] = await Promise.all([
       AdMob.trackingAuthorizationStatus(),
@@ -24,37 +33,89 @@ export const initAdMob = async () => {
     ) {
       await AdMob.showConsentForm();
     }
+
+    isInitialized = true;
   } catch (error) {
     console.error('AdMob initialization error:', error);
   }
 };
 
-export const showBannerAd = async (isPremiumUser = false) => {
-  if (!Capacitor.isNativePlatform() || isPremiumUser) return;
-
-  const options: BannerAdOptions = {
-    adId:
-      Capacitor.getPlatform() === 'ios'
-        ? 'ca-app-pub-3940256099942544/2934735716' // Official iOS test banner ID
-        : 'ca-app-pub-3940256099942544/6300978111', // Official Android test banner ID
-    adSize: BannerAdSize.ADAPTIVE_BANNER,
-    position: BannerAdPosition.BOTTOM_CENTER,
-    margin: 0,
-    isTesting: true,
-  };
-
-  try {
-    await AdMob.showBanner(options);
-  } catch (error) {
-    console.error('Error showing banner ad:', error);
-  }
+export const showBannerAd = async (_isPremiumUser = false) => {
+  return;
 };
 
 export const hideBannerAd = async () => {
-  if (!Capacitor.isNativePlatform()) return;
-  try {
-    await AdMob.hideBanner();
-  } catch (error) {
-    console.error('Error hiding banner ad:', error);
+  return;
+};
+
+export const showRewardedAd = async (): Promise<boolean> => {
+  if (!Capacitor.isNativePlatform()) {
+    return true;
   }
+
+  await initAdMob();
+
+  const options: RewardAdOptions = {
+    adId:
+      Capacitor.getPlatform() === 'ios'
+        ? 'ca-app-pub-3940256099942544/1712485313'
+        : 'ca-app-pub-3940256099942544/5224354917',
+    isTesting: true,
+  };
+
+  return new Promise<boolean>(async (resolve) => {
+    let rewarded = false;
+
+    const loadHandle = await AdMob.addListener(
+      RewardAdPluginEvents.Loaded,
+      async () => {
+        try {
+          await AdMob.showRewardVideoAd();
+        } catch (err) {
+          console.error('Failed to show rewarded ad:', err);
+          cleanup();
+          resolve(false);
+        }
+      }
+    );
+
+    const rewardHandle = await AdMob.addListener(
+      RewardAdPluginEvents.Rewarded,
+      () => {
+        rewarded = true;
+      }
+    );
+
+    const dismissHandle = await AdMob.addListener(
+      RewardAdPluginEvents.Dismissed,
+      () => {
+        cleanup();
+        resolve(rewarded);
+      }
+    );
+
+    const failHandle = await AdMob.addListener(
+      RewardAdPluginEvents.FailedToLoad,
+      (err) => {
+        console.error('Rewarded ad failed to load:', err);
+        cleanup();
+        resolve(false);
+      }
+    );
+
+    const cleanup = () => {
+      loadHandle.remove();
+      rewardHandle.remove();
+      dismissHandle.remove();
+      failHandle.remove();
+    };
+
+    try {
+      await AdMob.prepareRewardVideoAd(options);
+    } catch (err) {
+      console.error('Error preparing rewarded ad:', err);
+      cleanup();
+      resolve(false);
+    }
+  });
 };
