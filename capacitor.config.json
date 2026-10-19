@@ -1,9 +1,9 @@
 {
-  "appId": "com.nestling.app",
+  "appId": "com.nestlingapp.mobile",
   "appName": "Nestling",
-  "webDir": "dist/client",
+  "webDir": "dist",
   "server": {
-    "url": "https://nestling-app.md007syed007.workers.dev",
-    "cleartext": false
+    "cleartext": false,
+    "url": "https://md007-hub-nestling-app.md007syed007.workers.dev"
   }
 }

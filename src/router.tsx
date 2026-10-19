@@ -51,7 +51,7 @@ export const getRouter = () => {
         initPurchases(),
       ]);
       // Show default banner ad on mobile app load
-      await showBannerAd();
+      // await showBannerAd();
     })();
   }
 
