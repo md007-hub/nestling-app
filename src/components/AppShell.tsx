@@ -216,7 +216,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
   return (
     <div className="mx-auto flex min-h-[100dvh] w-full max-w-md flex-col bg-background">
-      {!isIntroduction && <header className="sticky top-0 z-40 isolate flex items-center justify-between gap-3 border-b border-border/70 bg-background/95 px-4 py-3 shadow-soft backdrop-blur-md supports-[backdrop-filter]:bg-background/85">
+      {!isIntroduction && <header className="sticky top-0 z-40 pt-[max(env(safe-area-inset-top),24px)] isolate flex items-center justify-between gap-3 border-b border-border/70 bg-background/95 px-4 py-3  shadow-soft backdrop-blur-md supports-[backdrop-filter]:bg-background/85">
         <div className="flex min-w-0 items-center gap-3">
           <NestlingLogo />
           <div className="flex min-w-0 flex-col items-start justify-center gap-1">

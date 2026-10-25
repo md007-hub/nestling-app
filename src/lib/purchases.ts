@@ -58,3 +58,14 @@ export const restorePurchases = async (): Promise<boolean> => {
 export const checkEntitlement = (customerInfo: CustomerInfo, entitlementId = 'premium'): boolean => {
   return typeof customerInfo?.entitlements?.active?.[entitlementId] !== 'undefined';
 };
+
+export const getCustomerInfo = async (): Promise<CustomerInfo | null> => {
+  if (!Capacitor.isNativePlatform()) return null;
+  try {
+    const { customerInfo } = await Purchases.getCustomerInfo();
+    return customerInfo;
+  } catch (error) {
+    console.error('Error getting customer info:', error);
+    return null;
+  }
+};

@@ -1,4 +1,4 @@
-import type { RealtimeChannel } from "@supabase/supabase-js";
+﻿import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { db, type LogEntry, type LogType } from "@/lib/db";
 
@@ -15,6 +15,9 @@ const PULL_WINDOW_MS = 30 * 24 * 3600_000;
 
 async function upsertLocal(row: Row) {
   const existing = await db.logs.where("uid").equals(row.id).first();
+  // Preserve local edits until they have been uploaded.
+  if (existing?.sync_status === "pending") return;
+
   const next: LogEntry = {
     uid: row.id,
     baby_id: row.baby_id,
@@ -76,7 +79,25 @@ async function syncOnce(babyId: string) {
     const { error } = await supabase.from("baby_logs").upsert(rows);
     if (error) throw error;
     await db.transaction("rw", db.logs, async () => {
-      for (const l of pending) await db.logs.update(l.id!, { sync_status: "synced", baby_id: babyId });
+      for (const l of pending) {
+        const current = await db.logs.get(l.id!);
+        if (
+          current &&
+          current.uid === l.uid &&
+          current.sync_status === "pending" &&
+          current.value === l.value &&
+          current.notes === l.notes &&
+          current.timestamp === l.timestamp &&
+          current.type === l.type
+        ) {
+          await db.logs.update(l.id!, {
+            sync_status: "synced",
+            baby_id: babyId,
+          });
+        } else if (current?.sync_status === "pending") {
+          again = true;
+        }
+      }
     });
   }
 
@@ -112,3 +133,5 @@ export function subscribeBaby(babyId: string): RealtimeChannel {
     )
     .subscribe();
 }
+
+

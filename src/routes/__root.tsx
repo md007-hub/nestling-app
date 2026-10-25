@@ -84,7 +84,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       {
         name: "viewport",
-        content: "width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1",
+        content: "width=device-width, initial-scale=1, maximum-scale=1",
       },
       { title: "Nestling — Baby tracker for night shifts" },
       {

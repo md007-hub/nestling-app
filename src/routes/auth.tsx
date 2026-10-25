@@ -34,7 +34,7 @@ function AuthPage() {
     setBusy(true);
     try {
       if (mode === "reset") {
-        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/reset-password` });
+        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: 'https://md007-hub-nestling-app.md007syed007.workers.dev/reset-password' });
         if (error) throw error;
         setSent(true);
       } else if (mode === "up") {

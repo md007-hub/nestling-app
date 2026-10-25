@@ -10,10 +10,12 @@ export function RemindersCard() {
   const [s, setS] = useState<ReminderSettings>(defaultSettings);
   const [perm, setPerm] = useState<string>("default");
   const [iosHint, setIosHint] = useState(false);
+
   useEffect(() => {
     setS(loadSettings());
-    setPerm(notificationsSupported() ? Notification.permission : "unsupported");
-    setIosHint(isIos() && !isStandalone());
+    const isSupported = typeof window !== "undefined" && typeof Notification !== "undefined" && notificationsSupported();
+    setPerm(isSupported ? Notification.permission : "unsupported");
+    setIosHint(typeof window !== "undefined" && isIos() && !isStandalone());
   }, []);
 
   const update = async (patch: Partial<ReminderSettings>) => {

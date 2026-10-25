@@ -1,7 +1,9 @@
+
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import { Crown, Loader2, PlayCircle, Send, Sparkles, WifiOff } from "lucide-react";
+import remarkGfm from "remark-gfm";
 import ReactMarkdown from "react-markdown";
 import { askBabyAi } from "@/lib/ai.functions";
 import { buildBabyContext } from "@/lib/babyContext";
@@ -32,6 +34,9 @@ export const Route = createFileRoute("/ask")({
 });
 
 type Msg = { role: "user" | "assistant"; content: string };
+
+// In-memory message store so conversation persists across tab switches
+let cachedMessages: Msg[] = [];
 
 const CHIPS = [
   { label: "🍼 Last feed time & amount", prompt: "When did baby last eat, and how much?" },
@@ -71,10 +76,23 @@ function AskPage() {
   const { baby } = useFamily();
   const { isPro, openUpgrade, consumeQuestion, aiQuestionsRemaining, watchRewardedAd, grantAiBonus } = usePro();
   const outOfQuestions = !isPro && aiQuestionsRemaining === 0;
-  const [messages, setMessages] = useState<Msg[]>([]);
+
+  const [messages, setMessagesState] = useState<Msg[]>(() => cachedMessages);
+
+  const setMessages = (next: Msg[] | ((prev: Msg[]) => Msg[])) => {
+    setMessagesState((prev) => {
+      const updated = typeof next === "function" ? next(prev) : next;
+      cachedMessages = updated;
+      return updated;
+    });
+  };
+
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [limitError, setLimitError] = useState("");
+
   const endRef = useRef<HTMLDivElement>(null);
+  const sendingRef = useRef(false);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -82,37 +100,61 @@ function AskPage() {
 
   const send = async (text: string) => {
     const question = text.trim();
-    if (!question || loading || offline || outOfQuestions) return;
 
-    try {
-      await consumeQuestion().catch((e) => console.warn("Failed to consume question:", e));
-    } catch (err) {
-      console.warn("consumeQuestion error bypassed:", err);
-    }
+    if (!question || sendingRef.current || offline || outOfQuestions) return;
 
-    const next: Msg[] = [...messages, { role: "user", content: question }];
-    setMessages(next);
-    setInput("");
+    sendingRef.current = true;
     setLoading(true);
+    setLimitError("");
 
     try {
-      const context = await buildBabyContext(baby).catch((e) => {
-        console.warn("Context build error:", e);
-        return undefined;
-      });
+      let allowed = false;
 
-      const res = await ask({ data: { messages: next, context } });
-      setMessages([...next, { role: "assistant", content: res.reply }]);
-    } catch (err) {
-      console.error("Nanny AI Error:", err);
-      setMessages([
-        ...next,
-        {
-          role: "assistant",
-          content: "Sorry, I ran into an issue getting that answer. Please try again in a moment.",
-        },
-      ]);
+      try {
+        allowed = await consumeQuestion();
+      } catch (err) {
+        console.error("Nanny AI question allowance check failed:", err);
+        setLimitError("Unable to verify your question allowance. Please try again.");
+        return;
+      }
+
+      if (!allowed) {
+        setLimitError(
+          "No free questions available right now. Please check your allowance or upgrade to PRO."
+        );
+        return;
+      }
+
+      const next: Msg[] = [...messages, { role: "user", content: question }];
+      setMessages(next);
+      setInput("");
+
+      try {
+        const context = await buildBabyContext(baby).catch((e) => {
+          console.warn("Context build error:", e);
+          return undefined;
+        });
+
+        const res = await ask({ data: { messages: next, context } });
+
+        setMessages([
+          ...next,
+          { role: "assistant", content: res.reply },
+        ]);
+      } catch (err) {
+        console.error("Nanny AI Error:", err);
+
+        setMessages([
+          ...next,
+          {
+            role: "assistant",
+            content:
+              "Sorry, I ran into an issue getting that answer. Please try again in a moment.",
+          },
+        ]);
+      }
     } finally {
+      sendingRef.current = false;
       setLoading(false);
     }
   };
@@ -123,7 +165,7 @@ function AskPage() {
 
       {messages.length === 0 && <Greeting />}
 
-      <div className="mt-3 flex-1 space-y-3 pb-36">
+      <div className="mt-3 flex-1 space-y-3 pb-4">
         {messages.map((m, i) => (
           <div
             key={i}
@@ -136,7 +178,7 @@ function AskPage() {
           >
             {m.role === "assistant" ? (
               <div className="space-y-2 [&_li]:ml-4 [&_li]:list-disc [&_strong]:font-semibold">
-                <ReactMarkdown>{m.content}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ table: ({children}) => <div className="w-full overflow-x-auto"><table className="min-w-[520px] w-full border-collapse text-xs">{children}</table></div>, th: ({children}) => <th className="border-b border-border p-2 text-left font-bold">{children}</th>, td: ({children}) => <td className="border-b border-border/50 p-2 align-top">{children}</td> }}>{m.content}</ReactMarkdown>
               </div>
             ) : (
               m.content
@@ -149,6 +191,7 @@ function AskPage() {
             <Loader2 className="h-4 w-4 animate-spin" /> Thinking…
           </div>
         )}
+
         <div ref={endRef} className="scroll-mb-40" />
       </div>
 
@@ -159,25 +202,39 @@ function AskPage() {
         </p>
       )}
 
-      <div className="sticky bottom-20 z-10 -mx-4 bg-background/95 px-4 pb-2 pt-2 backdrop-blur">
+      {limitError && (
+        <p role="alert" className="mb-2 rounded-xl bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
+          {limitError}
+        </p>
+      )}
+
+      <div className="sticky bottom-[5.5rem] z-30 -mx-4 bg-background/95 px-4 pb-2 pt-2 backdrop-blur">
         {outOfQuestions ? (
           <div className="mb-2 rounded-3xl bg-card p-4 shadow-soft">
-            <p className="font-display text-base font-bold">You've reached your daily free questions.</p>
-            <p className="mt-1 text-xs text-muted-foreground">Free questions reset at midnight.</p>
+            <p className="font-display text-base font-bold">
+              You've reached your daily free questions.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Free questions reset at midnight.
+            </p>
+
             <div className="mt-3 grid gap-2">
               <button
                 type="button"
                 onClick={() => watchRewardedAd(grantAiBonus)}
                 className="flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-background px-4 text-sm font-semibold transition active:scale-[0.98]"
               >
-                <PlayCircle className="h-5 w-5 text-lilac-foreground" /> Watch 1 quick ad (+3 questions)
+                <PlayCircle className="h-5 w-5 text-lilac-foreground" />
+                Watch 1 quick ad (+3 questions)
               </button>
+
               <button
                 type="button"
                 onClick={() => openUpgrade()}
                 className="flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-lilac px-4 text-sm font-bold text-lilac-foreground transition active:scale-[0.98]"
               >
-                <Crown className="h-5 w-5" /> Get Unlimited with PRO
+                <Crown className="h-5 w-5" />
+                Get Unlimited with PRO
               </button>
             </div>
           </div>
@@ -185,10 +242,12 @@ function AskPage() {
           !isPro &&
           aiQuestionsRemaining !== null && (
             <p className="mb-2 text-center text-xs font-medium text-muted-foreground">
-              {aiQuestionsRemaining} of {Math.max(FREE_AI_DAILY, aiQuestionsRemaining)} free questions remaining today
+              {aiQuestionsRemaining} of{" "}
+              {Math.max(FREE_AI_DAILY, aiQuestionsRemaining)} free questions remaining today
             </p>
           )
         )}
+
         <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-2 [scrollbar-width:none]">
           {CHIPS.map((c) => (
             <button
@@ -214,7 +273,7 @@ function AskPage() {
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            disabled={offline || outOfQuestions}
+            disabled={offline || outOfQuestions || loading}
             rows={1}
             placeholder={
               offline
@@ -225,6 +284,7 @@ function AskPage() {
             }
             className="max-h-32 min-h-11 flex-1 resize-none bg-transparent px-2 py-2.5 text-base outline-none placeholder:text-muted-foreground disabled:opacity-60"
           />
+
           <button
             type="submit"
             disabled={offline || loading || outOfQuestions || input.trim().length === 0}
@@ -234,6 +294,7 @@ function AskPage() {
             <Send className="h-5 w-5" />
           </button>
         </form>
+
         <p className="mt-1.5 text-center text-[11px] leading-snug text-muted-foreground">
           Nanny AI provides general guidance and is not a substitute for professional medical advice.
         </p>

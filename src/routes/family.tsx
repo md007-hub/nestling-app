@@ -18,14 +18,21 @@ import { DatePicker } from "@/components/ui/date-picker";
 export const Route = createFileRoute("/family")({
   head: () => ({
     meta: [
-      { title: "Settings · Nestling" },
+      { title: "Settings - Nestling" },
       { name: "description", content: "Create a baby profile, invite your partner with a code, and sync logs in real time." },
-      { property: "og:title", content: "Settings · Nestling" },
-      { property: "og:description", content: "Share your baby's feeds, diapers and sleep with your partner." },
+      { property: "og:title", content: "Settings - Nestling" },
+      { property: "og:description", content: "Share your baby feeds, diapers and sleep with your partner." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
   }),
+  errorComponent: ({ error }) => (
+    <div className="p-6 text-red-600 font-mono text-sm break-all">
+      <h2 className="text-lg font-bold mb-2">Family Page Error:</h2>
+      <p>{error?.message || String(error)}</p>
+      <pre className="mt-2 text-xs bg-red-50 p-2 rounded whitespace-pre-wrap">{error?.stack}</pre>
+    </div>
+  ),
   component: FamilyPage,
 });
 
@@ -50,18 +57,30 @@ function FamilyPage() {
 
   const uploadPhoto = async (file: File | undefined, remove = false) => {
     if (!baby) return;
-    if (!remove && (!file || !file.type.startsWith("image/") || file.size > 5 * 1024 * 1024)) { toast.error("Choose an image under 5MB"); return; }
+    if (!remove && (!file || !file.type.startsWith("image/") || file.size > 5 * 1024 * 1024)) {
+      toast.error("Choose an image under 5MB");
+      return;
+    }
     setSavingProfile(true);
     let path: string | null = null;
     if (!remove && file) {
       path = `${baby.id}/${Date.now()}.${file.name.split(".").pop()?.toLowerCase() || "jpg"}`;
       const { error } = await supabase.storage.from("baby-photos").upload(path, file, { upsert: true, contentType: file.type });
-      if (error) { setSavingProfile(false); toast.error("Photo upload failed"); return; }
+      if (error) {
+        setSavingProfile(false);
+        toast.error("Photo upload failed");
+        return;
+      }
     }
     const { error } = await supabase.from("babies").update({ photo_url: path }).eq("id", baby.id);
     if (!error && baby.photo_url) await supabase.storage.from("baby-photos").remove([baby.photo_url]);
     setSavingProfile(false);
-    if (error) toast.error("Could not save photo"); else { toast.success(remove ? "Photo removed" : "Photo updated"); await refresh(); }
+    if (error) {
+      toast.error("Could not save photo");
+    } else {
+      toast.success(remove ? "Photo removed" : "Photo updated");
+      await refresh();
+    }
   };
 
   const editBaby = () => {
@@ -160,16 +179,25 @@ function FamilyPage() {
               <div>
                 <p className="mb-2 text-sm font-semibold">Gender</p>
                 <div className="grid grid-cols-2 gap-2" role="group" aria-label="Gender">
-                  {(["boy", "girl"] as const).map((gender) => <Button key={gender} type="button" variant={profileGender === gender ? "default" : "outline"} aria-pressed={profileGender === gender} onClick={() => setProfileGender(gender)} className="h-12">{gender === "boy" ? "Boy" : "Girl"}</Button>)}
+                  {(["boy", "girl"] as const).map((gender) => (
+                    <Button key={gender} type="button" variant={profileGender === gender ? "default" : "outline"} aria-pressed={profileGender === gender} onClick={() => setProfileGender(gender)} className="h-12">
+                      {gender === "boy" ? "Boy" : "Girl"}
+                    </Button>
+                  ))}
                 </div>
               </div>
-              <div><p className="text-sm font-semibold">Date of birth</p><DatePicker label="Date of birth" value={profileDate} onChange={setProfileDate} maxDate={new Date()} /></div>
+              <div>
+                <p className="text-sm font-semibold">Date of birth</p>
+                <DatePicker label="Date of birth" value={profileDate} onChange={setProfileDate} maxDate={new Date()} />
+              </div>
               <div className="flex gap-2">
                 <Button type="button" variant="outline" onClick={() => setEditingBabyId(null)} className="h-12 flex-1">Cancel</Button>
                 <Button type="submit" disabled={savingProfile} className="h-12 flex-1">{savingProfile ? "Saving…" : "Save profile"}</Button>
               </div>
             </form>
-          ) : <Button type="button" variant="outline" onClick={editBaby} className="mt-4 h-11 w-full">Edit baby profile</Button>}
+          ) : (
+            <Button type="button" variant="outline" onClick={editBaby} className="mt-4 h-11 w-full">Edit baby profile</Button>
+          )}
           <div className="mt-4 flex items-center justify-between rounded-2xl bg-muted px-4 py-3">
             <span className="font-mono text-2xl font-bold tracking-[0.3em]">{baby.invite_code}</span>
             <Button
@@ -251,7 +279,9 @@ function FamilyPage() {
 
       <ProSection babyName={baby?.name ?? null} />
 
-      <Button asChild variant="outline" className="h-12 w-full justify-start text-base"><Link to="/tour"><BookOpen /> App Tour / How Nestling Works</Link></Button>
+      <Button asChild variant="outline" className="h-12 w-full justify-start text-base">
+        <Link to="/tour"><BookOpen /> App Tour / How Nestling Works</Link>
+      </Button>
 
       <Button variant="ghost" className="h-12 w-full text-muted-foreground" onClick={signOut}>
         <LogOut /> Sign out ({user.email})
@@ -292,17 +322,18 @@ function ProSection({ babyName }: { babyName: string | null }) {
   const [adSheet, setAdSheet] = useState(false);
 
   const manage = async () => {
-    const tab = window.open("", "_blank");
     setBusy(true);
     try {
-      const res = await createPortalSession({
-        data: { environment: getStripeEnvironment(), returnUrl: window.location.href },
-      });
-      if ("error" in res) throw new Error(res.error);
-      if (tab) tab.location.href = res.url;
-      else window.location.href = res.url;
+      if (ownSub) {
+        const res = await createPortalSession({
+          data: { environment: getStripeEnvironment(), returnUrl: window.location.href },
+        });
+        if ("error" in res) throw new Error(res.error);
+        window.open(res.url, "_blank");
+      } else {
+        window.open("https://play.google.com/store/account/subscriptions", "_blank");
+      }
     } catch (e) {
-      tab?.close();
       toast.error(e instanceof Error ? e.message : "Couldn't open subscription settings");
     } finally {
       setBusy(false);
@@ -326,7 +357,9 @@ function ProSection({ babyName }: { babyName: string | null }) {
     }
   };
 
-  const ends = ownSub?.current_period_end ? new Date(ownSub.current_period_end).toLocaleDateString() : null;
+  const ends = ownSub?.current_period_end
+    ? new Date(ownSub.current_period_end).toLocaleDateString()
+    : null;
 
   return (
     <section className="space-y-3 rounded-3xl border border-border bg-card p-5 shadow-soft">
@@ -345,8 +378,8 @@ function ProSection({ babyName }: { babyName: string | null }) {
                 ? `Pro until ${ends}`
                 : `Pro active${ends ? ` · renews ${ends}` : ""}`
             : testPro
-              ? "PRO switched on in test mode."
-              : "Pro is shared with you by your partner."
+            ? "PRO switched on in test mode."
+            : "PRO active — thank you for your support!"
           : "Unlimited Nanny AI, all sleep sounds and doctor-ready reports."}
       </p>
 
@@ -358,19 +391,19 @@ function ProSection({ babyName }: { babyName: string | null }) {
         <FileText /> Export Logs (CSV)
       </Button>
 
-      {!isPro && (
+      {isPro ? (
+        <Button variant="outline" disabled={busy} onClick={manage} className="h-12 w-full text-base">
+          <CreditCard /> Manage Subscription
+        </Button>
+      ) : (
         <Button onClick={() => openUpgrade()} className="h-12 w-full text-base">
           See PRO plans
         </Button>
       )}
+
       {canTestPro && testPro && (
         <Button variant="ghost" onClick={() => setTestPro(false)} className="h-10 w-full text-xs text-muted-foreground">
           Test mode: switch PRO off
-        </Button>
-      )}
-      {ownSub && !lifetime && (
-        <Button variant="outline" disabled={busy} onClick={manage} className="h-12 w-full text-base">
-          <CreditCard /> Manage Subscription
         </Button>
       )}
 

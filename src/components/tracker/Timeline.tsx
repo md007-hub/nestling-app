@@ -1,9 +1,11 @@
+﻿import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Baby, CloudSun, Droplets, Milk, MoonStar, StickyNote, Trash2, UtensilsCrossed } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { db, deleteLog, startOfToday, type LogEntry } from "@/lib/db";
 import { useFamily } from "@/hooks/useFamily";
 import { cn } from "@/lib/utils";
+import { NoteDialog } from "@/components/tracker/NoteDialog";
 
 function DiaperIcon({ className }: { className?: string }) {
   return (
@@ -69,11 +71,25 @@ export function Timeline() {
                 <span className={cn("flex h-10 w-10 items-center justify-center rounded-full", className)}>
                   <Icon className="h-5 w-5" />
                 </span>
-                <div className="min-w-0 flex-1">
+                {log.type === "note" ? (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedNote(log)}
+                    aria-label={`Read or edit note: ${log.value}`}
+                    className="min-w-0 flex-1 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <p className="truncate text-sm font-semibold">{log.value}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {time(log.timestamp)}
+                      {log.sync_status === "pending" ? " - pending sync" : ""}
+                    </p>
+                  </button>
+                ) : (
+                  <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold">{log.value}</p>
                   <p className="text-xs text-muted-foreground">
-                    {startTs(log) !== log.timestamp ? `${time(startTs(log))}–${time(log.timestamp)}` : time(log.timestamp)}
-                    {log.notes ? ` · ${log.notes}` : ""}
+                    {startTs(log) !== log.timestamp ? `${time(startTs(log))}â€“${time(log.timestamp)}` : time(log.timestamp)}
+                    {log.notes ? ` Â· ${log.notes}` : ""}
                     {log.sync_status === "pending" && (
                       <span className="ml-1.5 inline-flex items-center gap-1 text-offline" title="Waiting to sync">
                         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-offline" />
@@ -82,6 +98,7 @@ export function Timeline() {
                     )}
                   </p>
                 </div>
+                )}
                 <Button
                   type="button"
                    variant="ghost"
@@ -99,3 +116,4 @@ export function Timeline() {
     </section>
   );
 }
+

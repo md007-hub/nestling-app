@@ -1,4 +1,4 @@
-import Dexie, { type Table } from "dexie";
+﻿import Dexie, { type Table } from "dexie";
 
 export type LogType = "feed" | "diaper" | "sleep" | "tummy" | "pumping" | "solids" | "note";
 export type SyncStatus = "synced" | "pending";
@@ -65,6 +65,27 @@ export async function addLog(entry: Omit<LogEntry, "id" | "uid" | "timestamp" | 
   return id;
 }
 
+export async function updateNote(uid: string, value: string) {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 309) {
+    throw new Error("Invalid note");
+  }
+
+  const updated = await db.logs
+    .where("uid")
+    .equals(uid)
+    .modify((log) => {
+      if (log.type !== "note") return;
+      log.value = trimmed;
+      log.sync_status = "pending";
+    });
+
+  if (!updated) {
+    throw new Error("Note not found");
+  }
+
+  onLocalChange?.();
+}
 export async function deleteLog(log: LogEntry) {
   if (log.id == null) return;
   await db.transaction("rw", db.logs, db.deletions, async () => {
@@ -81,3 +102,4 @@ export function startOfToday() {
   d.setHours(0, 0, 0, 0);
   return d.getTime();
 }
+

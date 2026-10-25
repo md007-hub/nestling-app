@@ -21,3 +21,36 @@
 - Baby profile dates use the shared calendar picker, and profile saves refresh FamilyProvider so growth and wake-window views use the updated baby immediately.
 - Milestones are stored per baby in `baby_milestones` keyed by stable bracket:category:index ids from src/lib/milestones.ts — shared between parents; never reorder existing items.
 - Offline app shell uses vite-plugin-pwa (generateSW, output to dist/client) registered only via src/lib/registerSW.ts; the worker imports notify-sw.js so reminders share one worker — prevents two workers fighting over the same scope.
+
+
+## Nestling AI Development Workflow
+
+For new features, major changes, and bug fixes, use these four skills in order:
+
+1. Business Analyst
+   Read .agents/skills/business-analyst/SKILL.md
+   Define requirements and acceptance criteria.
+
+2. Technical Architect
+   Read .agents/skills/technical-architect/SKILL.md
+   Review the existing code and design a safe solution.
+
+3. Developer
+   Read .agents/skills/developer/SKILL.md
+   Implement approved changes and run build checks.
+
+4. Quality Assurance
+   Read .agents/skills/quality-assurance/SKILL.md
+   Test the changes and report any problems.
+
+## Rules
+- Preserve all existing AGENTS.md instructions.
+- Never overwrite working features unnecessarily.
+- Never rewrite published Lovable Git history.
+- Prefer zero-cost solutions.
+- Explain everything in simple language.
+- Give the Product Owner one step at a time.
+- Obtain approval before implementation and deployment.
+- Never claim testing is complete without evidence.
+- Do not deploy changes until QA review and Product Owner approval.
+- These skills are instructions, not autonomous agents.

@@ -6,6 +6,7 @@ import { useFamily } from "@/hooks/useFamily";
 import { tryStripeEnvironment } from "@/lib/stripe";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { showRewardedAd } from "@/lib/admob";
+import { getCustomerInfo, checkEntitlement } from "@/lib/purchases";
 
 export type OwnSub = { status: string; price_id: string; current_period_end: string | null; cancel_at_period_end: boolean | null };
 
@@ -74,6 +75,20 @@ export function ProProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshPro = useCallback(async () => {
+    // 1. Check native RevenueCat first on Android / iOS
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const info = await getCustomerInfo();
+        if (info && checkEntitlement(info, "premium")) {
+          setRealPro(true);
+          return;
+        }
+      } catch (e) {
+        console.error("RevenueCat entitlement check failed:", e);
+      }
+    }
+
+    // 2. Web fallback: check Supabase database
     const env = tryStripeEnvironment();
     if (!user || !env) {
       setRealPro(false);

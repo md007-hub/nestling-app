@@ -285,6 +285,26 @@ function AmountStepper({ id, label, value, onChange, min, max, step = 1, unit, t
   );
 }
 
+// Compact oz | ml segmented control shared by the Feed card and Log Past Feed dialog.
+function FeedUnitToggle({ unit, onSwitch, label }: { unit: "ml" | "oz"; onSwitch: (unit: "ml" | "oz") => void; label: string }) {
+  return (
+    <div className={cn("flex shrink-0", segmentTrack)} role="group" aria-label={label}>
+      {(["oz", "ml"] as const).map((u) => (
+        <Button
+          key={u}
+          type="button"
+          variant="ghost"
+          aria-pressed={unit === u}
+          onClick={() => onSwitch(u)}
+          className={cn("h-8 rounded-full px-3 text-xs font-semibold uppercase", unit === u && sheetStyle.sage.selected)}
+        >
+          {u}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
 function localDateTime(date: Date) {
   const offset = date.getTimezoneOffset() * 60000;
   return new Date(date.getTime() - offset).toISOString().slice(0, 16);
@@ -295,6 +315,19 @@ function parseLocal(v: string) {
   if (!m) return NaN;
   return new Date(+m[1]!, +m[2]! - 1, +m[3]!, +m[4]!, +m[5]!).getTime();
 }
+const ML_PER_OZ = 29.5735;
+const FEED_LIMITS = {
+  ml: { min: 1, max: 2000, step: 10 },
+  oz: { min: 0.5, max: 68, step: 0.5 },
+} as const;
+
+// Converts a stored amount between feed units, rounding to 0.5 oz or whole ml.
+function convertFeedAmount(value: string, to: "ml" | "oz") {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  return to === "oz" ? String(Math.round((n / ML_PER_OZ) * 2) / 2) : String(Math.round(n * ML_PER_OZ));
+}
+
 export function defaultSleepKind(ts = Date.now()): "Nap" | "Night Sleep" {
   const h = new Date(ts).getHours();
   return h >= 7 && h < 19 ? "Nap" : "Night Sleep";
@@ -313,6 +346,62 @@ async function logWithUndo(entry: Parameters<typeof addLog>[0], message: string)
       },
     },
   });
+}
+
+function PumpUnitToggle({ unit, onSwitch }: { unit: "ml" | "oz"; onSwitch: (unit: "ml" | "oz") => void }) {
+  return (
+    <div className={cn("flex shrink-0", segmentTrack)} role="group" aria-label="Pumping units">
+      {(["oz", "ml"] as const).map((u) => (
+        <Button key={u} type="button" variant="ghost" aria-pressed={unit === u} onClick={() => onSwitch(u)} className={cn("h-8 rounded-full px-3 text-xs font-semibold uppercase", unit === u && sheetStyle.lilac.selected)}>
+          {u}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+function PastEntryDialog({ title, tone, open, onOpenChange, onSave, children }: {
+  title: string; tone: ButtonTone; open: boolean; onOpenChange: (open: boolean) => void;
+  onSave: (event: React.FormEvent<HTMLFormElement>) => Promise<void>; children: React.ReactNode;
+}) {
+  const [saving, setSaving] = useState(false);
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogTrigger asChild>
+        <Button variant="link" type="button" className={cn("mx-auto mt-2 flex h-10 px-0", living[tone].split(" ")[1])}>
+          <Plus /> Log Past {title}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[90dvh] w-[calc(100%-2rem)] max-w-sm overflow-y-auto rounded-3xl border-border bg-card">
+        <DialogHeader>
+          <DialogTitle>Log Past {title}</DialogTitle>
+          <DialogDescription className="sr-only">Log a past {title.toLowerCase()} entry.</DialogDescription>
+        </DialogHeader>
+        <form className="space-y-4" onSubmit={async (event) => {
+          event.preventDefault();
+          if (saving) return;
+          setSaving(true);
+          try { await onSave(event); }
+          catch { toast.error("Could not save this entry. Please try again."); }
+          finally { setSaving(false); }
+        }}>
+          {children}
+          <Button type="submit" variant="ghost" disabled={saving} className={cn(bigButton, sheetStyle[tone].action, "w-full")}>
+            {saving ? "Saving…" : `Save ${title.toLowerCase()}`}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PastEntryTime({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="block text-sm font-medium">
+      Time
+      <input type="datetime-local" required value={value} onChange={(e) => onChange(e.target.value)} className="mt-1 h-12 w-full min-w-0 rounded-xl border border-input bg-background px-3 text-base" />
+    </label>
+  );
 }
 
 export function QuickActions() {
@@ -337,13 +426,34 @@ export function QuickActions() {
   const [pumpMin, setPumpMin] = useState("");
   const [pumpVolume, setPumpVolume] = useState("");
   const [pumpUnit, setPumpUnit] = useState<"ml" | "oz">("ml");
+  const [pastPumpOpen, setPastPumpOpen] = useState(false);
+  const [pumpOpen, setPumpOpen] = useState(false);
+  const [tummyOpen, setTummyOpen] = useState(false);
+  const [pastPumpSide, setPastPumpSide] = useState<"Left" | "Right" | "Both">("Both");
+  const [pastPumpMin, setPastPumpMin] = useState("");
+  const [pastPumpVolume, setPastPumpVolume] = useState("");
+  const [pastPumpTime, setPastPumpTime] = useState("");
+  const [pastDiaperOpen, setPastDiaperOpen] = useState(false);
+  const [pastDiaperKind, setPastDiaperKind] = useState<"Wet" | "Poop" | "Mixed">("Wet");
+  const [pastDiaperTime, setPastDiaperTime] = useState("");
+  const [pastTummyOpen, setPastTummyOpen] = useState(false);
+  const [pastTummyMin, setPastTummyMin] = useState("");
+  const [pastTummyTime, setPastTummyTime] = useState("");
   const [tummyMin, setTummyMin] = useState("");
   const [feedMode, setFeedMode] = useState<"bottle" | "nursing" | "solids">("bottle");
+  const [pastFeedOpen, setPastFeedOpen] = useState(false);
+  const [pastFeedKind, setPastFeedKind] = useState<"Bottle" | "Breastfeed">("Bottle");
+  const [pastFeedTime, setPastFeedTime] = useState("");
+  const [pastFeedStart, setPastFeedStart] = useState("");
+  const [pastFeedEnd, setPastFeedEnd] = useState("");
+  const [pastFeedMl, setPastFeedMl] = useState("");
+  const [pastFeedSide, setPastFeedSide] = useState<"Left" | "Right">("Left");
   useEffect(() => {
     if (!solidsOn && feedMode === "solids") setFeedMode("bottle");
   }, [solidsOn, feedMode]);
   const [side, setSide] = useState<"Left" | "Right">("Left");
   const [bottleMl, setBottleMl] = useState("");
+  const [feedUnit, setFeedUnit] = useState<"ml" | "oz">("oz");
   const [diaperKind, setDiaperKind] = useState<"Wet" | "Poop" | "Mixed" | null>(null);
   const [napOpen, setNapOpen] = useState(false);
   const [sleepKind, setSleepKind] = useState<"Nap" | "Night Sleep">(() => defaultSleepKind());
@@ -376,14 +486,55 @@ export function QuickActions() {
     0,
   );
 
+  const switchFeedUnit = (unit: "ml" | "oz") => {
+    if (unit === feedUnit) return;
+    setBottleMl(convertFeedAmount(bottleMl, unit));
+    setPastFeedMl(convertFeedAmount(pastFeedMl, unit));
+    setFeedUnit(unit);
+  };
   const logBottle = async () => {
-    const ml = Number(bottleMl);
-    if (!Number.isInteger(ml) || ml < 1 || ml > 2000) {
-      toast.error("Pick or enter an amount between 1 and 2000ml");
+    const amount = Number(bottleMl);
+    if (!Number.isFinite(amount) || amount < FEED_LIMITS[feedUnit].min || amount > FEED_LIMITS[feedUnit].max) {
+      toast.error(`Pick or enter an amount between ${FEED_LIMITS[feedUnit].min} and ${FEED_LIMITS[feedUnit].max}${feedUnit}`);
       return;
     }
+    const ml = feedUnit === "oz" ? Math.round(amount * ML_PER_OZ) : amount;
     await logWithUndo({ type: "feed", value: `Bottle · ${ml}ml` }, `Bottle ${ml}ml logged`);
     setBottleMl("");
+  };
+  const savePastFeed = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (pastFeedKind === "Bottle") {
+      const amount = Number(pastFeedMl);
+      const ts = parseLocal(pastFeedTime);
+      if (!Number.isFinite(amount) || amount < FEED_LIMITS[feedUnit].min || amount > FEED_LIMITS[feedUnit].max) {
+        toast.error(`Pick or enter an amount between ${FEED_LIMITS[feedUnit].min} and ${FEED_LIMITS[feedUnit].max}${feedUnit}`);
+        return;
+      }
+      const ml = feedUnit === "oz" ? Math.round(amount * ML_PER_OZ) : amount;
+      if (!Number.isFinite(ts) || ts > Date.now() + 60000) {
+        toast.error("Enter a valid past time");
+        return;
+      }
+      await logWithUndo({ type: "feed", value: `Bottle · ${ml}ml`, timestamp: ts }, `Bottle ${ml}ml logged`);
+      setPastFeedMl("");
+      setPastFeedTime("");
+      setPastFeedOpen(false);
+    } else {
+      const start = parseLocal(pastFeedStart);
+      const end = parseLocal(pastFeedEnd);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end || end > Date.now() + 60000) {
+        toast.error("Enter a valid past start and end time");
+        return;
+      }
+      await logWithUndo(
+        { type: "feed", value: `Breastfeed · ${pastFeedSide}`, notes: formatDuration(end - start), timestamp: end },
+        "Nursing logged",
+      );
+      setPastFeedStart("");
+      setPastFeedEnd("");
+      setPastFeedOpen(false);
+    }
   };
   const logSolids = async () => {
     const name = food.trim();
@@ -427,6 +578,61 @@ export function QuickActions() {
     setPumpVolume("");
     setPumpMin("");
     toast.success("Pumping session logged");
+  };
+  const switchPumpUnit = (unit: "ml" | "oz") => {
+    if (unit === pumpUnit) return;
+    setPumpVolume(convertFeedAmount(pumpVolume, unit));
+    setPastPumpVolume(convertFeedAmount(pastPumpVolume, unit));
+    setPumpUnit(unit);
+  };
+  const savePastPump = async () => {
+    const amount = Number(pastPumpVolume);
+    const minutes = Number(pastPumpMin);
+    const timestamp = parseLocal(pastPumpTime);
+    if (!Number.isFinite(amount) || amount < FEED_LIMITS[pumpUnit].min || amount > FEED_LIMITS[pumpUnit].max) {
+      toast.error(`Enter an amount between ${FEED_LIMITS[pumpUnit].min} and ${FEED_LIMITS[pumpUnit].max}${pumpUnit}`);
+      return;
+    }
+    if (!Number.isFinite(minutes) || minutes < 1 || minutes > 720) {
+      toast.error("Enter a duration between 1 minute and 12 hours");
+      return;
+    }
+    if (!Number.isFinite(timestamp) || timestamp > Date.now() + 60000) {
+      toast.error("Enter a valid past time");
+      return;
+    }
+    const ml = pumpUnit === "oz" ? Math.round(amount * ML_PER_OZ) : Math.round(amount);
+    await logWithUndo({ type: "pumping", value: `Pumping · ${pastPumpSide} · ${ml}ml`, notes: formatDuration(minutes * 60000), timestamp }, "Pumping session logged");
+    setPastPumpOpen(false);
+    setPumpOpen(false);
+    setPastPumpMin("");
+    setPastPumpVolume("");
+  };
+  const savePastDiaper = async () => {
+    const timestamp = parseLocal(pastDiaperTime);
+    if (!Number.isFinite(timestamp) || timestamp > Date.now() + 60000) {
+      toast.error("Enter a valid past time");
+      return;
+    }
+    await logWithUndo({ type: "diaper", value: pastDiaperKind, timestamp }, `${pastDiaperKind} diaper logged`);
+    setPastDiaperOpen(false);
+    setDiaperOpen(false);
+  };
+  const savePastTummy = async () => {
+    const minutes = Number(pastTummyMin);
+    const timestamp = parseLocal(pastTummyTime);
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 180) {
+      toast.error("Enter 1–180 minutes");
+      return;
+    }
+    if (!Number.isFinite(timestamp) || timestamp > Date.now() + 60000) {
+      toast.error("Enter a valid past time");
+      return;
+    }
+    await logWithUndo({ type: "tummy", value: "Tummy time", notes: formatDuration(minutes * 60000), timestamp }, `${minutes} min tummy time logged`);
+    setPastTummyOpen(false);
+    setTummyOpen(false);
+    setPastTummyMin("");
   };
   const savePastNap = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -526,21 +732,24 @@ export function QuickActions() {
         </div>
         {feedMode === "bottle" ? (
           <>
-            <div className="flex gap-2" role="group" aria-label="Bottle presets">
-              {[60, 90, 120, 150].map((ml) => (
-                <Button
-                  key={ml}
-                  type="button"
-                  aria-pressed={bottleMl === String(ml)}
-                  onClick={() => setBottleMl(String(ml))}
-                  variant="ghost"
-                  className={cn(pillBase, bottleMl === String(ml) && sheetStyle.sage.selected)}
-                >
-                  {ml}
-                </Button>
-              ))}
+            <div className="flex items-center gap-2">
+              <div className="flex min-w-0 flex-1 gap-2" role="group" aria-label="Bottle presets">
+                {(feedUnit === "ml" ? [60, 90, 120, 150] : [2, 3, 4, 5]).map((preset) => (
+                  <Button
+                    key={preset}
+                    type="button"
+                    aria-pressed={bottleMl === String(preset)}
+                    onClick={() => setBottleMl(String(preset))}
+                    variant="ghost"
+                    className={cn(pillBase, bottleMl === String(preset) && sheetStyle.sage.selected)}
+                  >
+                    {preset}
+                  </Button>
+                ))}
+              </div>
+              <FeedUnitToggle unit={feedUnit} onSwitch={switchFeedUnit} label="Feed units" />
             </div>
-            <div className="mt-3"><AmountStepper id="custom-ml" label="Amount" value={bottleMl} onChange={setBottleMl} min={1} max={2000} step={10} unit="ml" tone="sage" /></div>
+            <div className="mt-3"><AmountStepper id="feed-amount" label="Amount" value={bottleMl} onChange={setBottleMl} min={FEED_LIMITS[feedUnit].min} max={FEED_LIMITS[feedUnit].max} step={FEED_LIMITS[feedUnit].step} unit={feedUnit} tone="sage" /></div>
             <Button type="button" variant="ghost" onClick={() => void logBottle()} className={cn(bigButton, sheetStyle.sage.action, "mt-3 w-full")}>
               Log Feed
             </Button>
@@ -675,10 +884,112 @@ export function QuickActions() {
             )}
           </div>
         )}
+        <Dialog
+          open={pastFeedOpen}
+          onOpenChange={(open) => {
+            setPastFeedOpen(open);
+            if (open) {
+              setPastFeedKind(feedMode === "nursing" ? "Breastfeed" : "Bottle");
+              setPastFeedTime(localDateTime(new Date()));
+              setPastFeedStart(localDateTime(new Date(Date.now() - 1800000)));
+              setPastFeedEnd(localDateTime(new Date()));
+            }
+          }}
+        >
+          <DialogTrigger asChild>
+            <Button variant="link" type="button" className="mt-2 h-10 px-0 text-sage-foreground">
+              <Plus />
+              Log Past Feed
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="w-[calc(100%-2rem)] max-w-sm rounded-3xl border-border bg-card">
+            <DialogHeader>
+              <DialogTitle>Log Past Feed</DialogTitle>
+              <DialogDescription>
+                Enter when the feed happened. Nursing saves the duration between start and end.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={(event) => void savePastFeed(event)} className="space-y-4">
+              <div className={cn("grid grid-cols-2", segmentTrack)} role="group" aria-label="Past feed type">
+                {(["Bottle", "Breastfeed"] as const).map((kind) => (
+                  <Button
+                    key={kind}
+                    type="button"
+                    variant="ghost"
+                    aria-pressed={pastFeedKind === kind}
+                    onClick={() => setPastFeedKind(kind)}
+                    className={cn(segmentBase, pastFeedKind === kind && sheetStyle.sage.selected)}
+                  >
+                    {kind}
+                  </Button>
+                ))}
+              </div>
+              {pastFeedKind === "Bottle" ? (
+                <>
+                  <div className="flex items-center justify-end">
+                    <FeedUnitToggle unit={feedUnit} onSwitch={switchFeedUnit} label="Past feed units" />
+                  </div>
+                  <AmountStepper id="past-feed-amount" label="Amount" value={pastFeedMl} onChange={setPastFeedMl} min={FEED_LIMITS[feedUnit].min} max={FEED_LIMITS[feedUnit].max} step={FEED_LIMITS[feedUnit].step} unit={feedUnit} tone="sage" />
+                  <label className="block text-sm font-medium">
+                    Time
+                    <input
+                      type="datetime-local"
+                      required
+                      value={pastFeedTime}
+                      onChange={(e) => setPastFeedTime(e.target.value)}
+                      className="mt-1 h-12 w-full rounded-xl border border-input bg-background px-3 text-base"
+                    />
+                  </label>
+                </>
+              ) : (
+                <>
+                  <div className={cn("flex justify-center gap-1", segmentTrack)} role="group" aria-label="Nursing side">
+                    {(["Left", "Right"] as const).map((s) => (
+                      <Button
+                        key={s}
+                        type="button"
+                        variant="ghost"
+                        aria-pressed={pastFeedSide === s}
+                        onClick={() => setPastFeedSide(s)}
+                        className={cn(segmentBase, "h-10 px-3", pastFeedSide === s && sheetStyle.sage.selected)}
+                      >
+                        {s}
+                      </Button>
+                    ))}
+                  </div>
+                  <label className="block text-sm font-medium">
+                    Start time
+                    <input
+                      type="datetime-local"
+                      required
+                      value={pastFeedStart}
+                      onChange={(e) => setPastFeedStart(e.target.value)}
+                      className="mt-1 h-12 w-full rounded-xl border border-input bg-background px-3 text-base"
+                    />
+                  </label>
+                  <label className="block text-sm font-medium">
+                    End time
+                    <input
+                      type="datetime-local"
+                      required
+                      value={pastFeedEnd}
+                      onChange={(e) => setPastFeedEnd(e.target.value)}
+                      className="mt-1 h-12 w-full rounded-xl border border-input bg-background px-3 text-base"
+                    />
+                  </label>
+                </>
+              )}
+              <Button type="submit" variant="ghost" className={cn(bigButton, sheetStyle.sage.action, "w-full")}>
+                Save feed
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+
       </SectionCard>
 
       {prefs.pumping && (
-      <SectionCard title="Pumping" icon={<Droplets className="h-6 w-6" />} tone="lilac" context={pumpCtx} live={pumping.active} className={orderClass("pumping")}>
+      <SectionCard title="Pumping" icon={<Droplets className="h-6 w-6" />} tone="lilac" context={pumpCtx} live={pumping.active} className={orderClass("pumping")} open={pumpOpen} onOpenChange={setPumpOpen}>
         <div className="mb-3 grid grid-cols-3 gap-2" role="group" aria-label="Pumping side">
           {(["Left", "Right", "Both"] as const).map((s) => (
             <Button
@@ -727,22 +1038,34 @@ export function QuickActions() {
           <div className="mb-3"><AmountStepper id="pump-min" label="Duration" value={pumpMin} onChange={setPumpMin} min={1} max={720} unit="min" tone="lilac" /></div>
         )}
         <div className="space-y-2">
-          <AmountStepper id="pump-volume" label="Expressed" value={pumpVolume} onChange={setPumpVolume} min={0.1} max={pumpUnit === "ml" ? 2000 : 68} step={pumpUnit === "ml" ? 5 : 0.5} unit={pumpUnit} tone="lilac" />
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              setPumpVolume("");
-              setPumpUnit(pumpUnit === "ml" ? "oz" : "ml");
-            }}
-            className="h-10 rounded-full"
-          >
-            Switch to {pumpUnit === "ml" ? "oz" : "ml"}
-          </Button>
+          <div className="flex items-center justify-between gap-2">
+            <label htmlFor="pump-volume" className="text-sm font-semibold">Expressed</label>
+            <PumpUnitToggle unit={pumpUnit} onSwitch={switchPumpUnit} />
+          </div>
+          <AmountStepper id="pump-volume" label="" value={pumpVolume} onChange={setPumpVolume} min={FEED_LIMITS[pumpUnit].min} max={FEED_LIMITS[pumpUnit].max} step={FEED_LIMITS[pumpUnit].step} unit={pumpUnit} tone="lilac" />
         </div>
         <Button type="button" variant="ghost" onClick={() => void savePump()} className={cn(bigButton, sheetStyle.lilac.action, "mt-3 w-full")}>
           Log Pumping
         </Button>
+        <PastEntryDialog title="Pumping" tone="lilac" open={pastPumpOpen} onOpenChange={(open) => {
+          setPastPumpOpen(open);
+          if (open) { setPastPumpSide(pumpSide); setPastPumpTime(localDateTime(new Date())); }
+        }} onSave={savePastPump}>
+          <div className={cn("grid grid-cols-3", segmentTrack)} role="group" aria-label="Past pumping side">
+            {(["Left", "Right", "Both"] as const).map((s) => (
+              <Button key={s} type="button" variant="ghost" aria-pressed={pastPumpSide === s} onClick={() => setPastPumpSide(s)} className={cn(segmentBase, pastPumpSide === s && sheetStyle.lilac.selected)}>{s}</Button>
+            ))}
+          </div>
+          <AmountStepper id="past-pump-min" label="Duration" value={pastPumpMin} onChange={setPastPumpMin} min={1} max={720} unit="min" tone="lilac" />
+          <PastEntryTime value={pastPumpTime} onChange={setPastPumpTime} />
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <label htmlFor="past-pump-volume" className="text-sm font-semibold">Expressed</label>
+              <PumpUnitToggle unit={pumpUnit} onSwitch={switchPumpUnit} />
+            </div>
+            <AmountStepper id="past-pump-volume" label="" value={pastPumpVolume} onChange={setPastPumpVolume} min={FEED_LIMITS[pumpUnit].min} max={FEED_LIMITS[pumpUnit].max} step={FEED_LIMITS[pumpUnit].step} unit={pumpUnit} tone="lilac" />
+          </div>
+        </PastEntryDialog>
       </SectionCard>
       )}
 
@@ -777,6 +1100,17 @@ export function QuickActions() {
         <Button type="button" variant="ghost" onClick={() => void logDiaper()} className={cn(bigButton, sheetStyle.peach.action, "mt-3 w-full")}>
           Log Diaper
         </Button>
+        <PastEntryDialog title="Diaper" tone="peach" open={pastDiaperOpen} onOpenChange={(open) => {
+          setPastDiaperOpen(open);
+          if (open) { setPastDiaperKind(diaperKind ?? "Wet"); setPastDiaperTime(localDateTime(new Date())); }
+        }} onSave={savePastDiaper}>
+          <div className={cn("grid grid-cols-3", segmentTrack)} role="group" aria-label="Past diaper type">
+            {(["Wet", "Poop", "Mixed"] as const).map((kind) => (
+              <Button key={kind} type="button" variant="ghost" aria-pressed={pastDiaperKind === kind} onClick={() => setPastDiaperKind(kind)} className={cn(segmentBase, pastDiaperKind === kind && sheetStyle.peach.selected)}>{kind}</Button>
+            ))}
+          </div>
+          <PastEntryTime value={pastDiaperTime} onChange={setPastDiaperTime} />
+        </PastEntryDialog>
       </SectionCard>
 
       <SectionCard
@@ -885,7 +1219,7 @@ export function QuickActions() {
         </Dialog>
       </SectionCard>
 
-      <SectionCard title="Tummy Time" icon={<Hourglass className="h-6 w-6" strokeWidth={2.25} />} tone="tummy" context={tummyCtx} className={orderClass("tummy")}>
+      <SectionCard title="Tummy Time" icon={<Hourglass className="h-6 w-6" strokeWidth={2.25} />} tone="tummy" context={tummyCtx} className={orderClass("tummy")} open={tummyOpen} onOpenChange={setTummyOpen}>
         <div className="flex items-center justify-between rounded-2xl bg-card/70 px-4 py-3">
           <span className="text-sm text-muted-foreground">
             {tummy.active ? "Tummy time in progress" : "Not running"}
@@ -946,6 +1280,13 @@ export function QuickActions() {
             Log
           </Button>
         </div>
+        <PastEntryDialog title="Tummy Time" tone="tummy" open={pastTummyOpen} onOpenChange={(open) => {
+          setPastTummyOpen(open);
+          if (open) setPastTummyTime(localDateTime(new Date()));
+        }} onSave={savePastTummy}>
+          <AmountStepper id="past-tummy-min" label="Duration" value={pastTummyMin} onChange={setPastTummyMin} min={1} max={180} unit="min" tone="tummy" />
+          <PastEntryTime value={pastTummyTime} onChange={setPastTummyTime} />
+        </PastEntryDialog>
       </SectionCard>
 
       {prefs.notes && (

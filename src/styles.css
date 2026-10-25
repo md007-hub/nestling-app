@@ -240,7 +240,7 @@
 }
 
 body {
-  padding-top: max(env(safe-area-inset-top), 24px);
+  padding-top: 0;
   padding-bottom: env(safe-area-inset-bottom);
 }
 #lovable-badge,
