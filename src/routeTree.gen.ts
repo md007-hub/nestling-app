@@ -20,7 +20,7 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SoundsRouteImport } from './routes/sounds'
 import { Route as TourRouteImport } from './routes/tour'
 import { Route as CheckoutReturnRouteImport } from './routes/checkout/return'
-import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
+import { Route as ApiPublicAdmobVerifyRouteImport } from './routes/api/public/admob/verify'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -77,12 +77,11 @@ const CheckoutReturnRoute = CheckoutReturnRouteImport.update({
   path: '/checkout/return',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicPaymentsWebhookRoute =
-  ApiPublicPaymentsWebhookRouteImport.update({
-    id: '/api/public/payments/webhook',
-    path: '/api/public/payments/webhook',
-    getParentRoute: () => rootRouteImport,
-  } as any)
+const ApiPublicAdmobVerifyRoute = ApiPublicAdmobVerifyRouteImport.update({
+  id: '/api/public/admob/verify',
+  path: '/api/public/admob/verify',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -96,7 +95,7 @@ export interface FileRoutesByFullPath {
   '/sounds': typeof SoundsRoute
   '/tour': typeof TourRoute
   '/checkout/return': typeof CheckoutReturnRoute
-  '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/admob/verify': typeof ApiPublicAdmobVerifyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -110,7 +109,7 @@ export interface FileRoutesByTo {
   '/sounds': typeof SoundsRoute
   '/tour': typeof TourRoute
   '/checkout/return': typeof CheckoutReturnRoute
-  '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/admob/verify': typeof ApiPublicAdmobVerifyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -125,7 +124,7 @@ export interface FileRoutesById {
   '/sounds': typeof SoundsRoute
   '/tour': typeof TourRoute
   '/checkout/return': typeof CheckoutReturnRoute
-  '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/admob/verify': typeof ApiPublicAdmobVerifyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -141,7 +140,7 @@ export interface FileRouteTypes {
     | '/sounds'
     | '/tour'
     | '/checkout/return'
-    | '/api/public/payments/webhook'
+    | '/api/public/admob/verify'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -155,7 +154,7 @@ export interface FileRouteTypes {
     | '/sounds'
     | '/tour'
     | '/checkout/return'
-    | '/api/public/payments/webhook'
+    | '/api/public/admob/verify'
   id:
     | '__root__'
     | '/'
@@ -169,7 +168,7 @@ export interface FileRouteTypes {
     | '/sounds'
     | '/tour'
     | '/checkout/return'
-    | '/api/public/payments/webhook'
+    | '/api/public/admob/verify'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -184,7 +183,7 @@ export interface RootRouteChildren {
   SoundsRoute: typeof SoundsRoute
   TourRoute: typeof TourRoute
   CheckoutReturnRoute: typeof CheckoutReturnRoute
-  ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
+  ApiPublicAdmobVerifyRoute: typeof ApiPublicAdmobVerifyRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -266,11 +265,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CheckoutReturnRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/payments/webhook': {
-      id: '/api/public/payments/webhook'
-      path: '/api/public/payments/webhook'
-      fullPath: '/api/public/payments/webhook'
-      preLoaderRoute: typeof ApiPublicPaymentsWebhookRouteImport
+    '/api/public/admob/verify': {
+      id: '/api/public/admob/verify'
+      path: '/api/public/admob/verify'
+      fullPath: '/api/public/admob/verify'
+      preLoaderRoute: typeof ApiPublicAdmobVerifyRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -288,7 +287,7 @@ const rootRouteChildren: RootRouteChildren = {
   SoundsRoute: SoundsRoute,
   TourRoute: TourRoute,
   CheckoutReturnRoute: CheckoutReturnRoute,
-  ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
+  ApiPublicAdmobVerifyRoute: ApiPublicAdmobVerifyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

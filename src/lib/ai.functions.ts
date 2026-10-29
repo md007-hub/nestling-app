@@ -1,3 +1,5 @@
+﻿import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { reserveNannyQuestion, finishNannyQuestion } from "@/lib/ai-quota.server";
 
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -165,8 +167,9 @@ async function askGemini(
 }
 
 export const askBabyAi = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => schema.parse(data))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const lastMessage = data.messages[data.messages.length - 1];
 
     if (!lastMessage || lastMessage.role !== "user") {
@@ -211,48 +214,93 @@ ${contextSnippet}
       };
     }
 
+    let reservationId: string;
+
+    try {
+      const quota = await reserveNannyQuestion(context.userId);
+
+      if (!quota.reservationId) {
+        return {
+          reply: "You've reached your Nanny AI question limit for today. Please try again tomorrow or upgrade to PRO.",
+        };
+      }
+
+      reservationId = quota.reservationId;
+    } catch (error) {
+      console.error("[NannyAI] Quota check failed", error);
+
+      return {
+        reply: "Unable to check your question allowance right now. Please try again shortly.",
+      };
+    }
+
+    let aiReply: string | null = null;
+
     if (groqKey) {
       try {
-        const reply = await askGroq(
+        aiReply = await askGroq(
           messages,
           systemInstruction,
           groqKey,
         );
 
         console.log("[NannyAI] Answer provided by Groq.");
-
-        return { reply };
       } catch (error) {
         console.error("[NannyAI] Groq failed", {
-          error:
-            error instanceof Error ? error.message : String(error),
+          error: error instanceof Error ? error.message : String(error),
         });
       }
     }
 
-    if (geminiKey) {
+    if (!aiReply && geminiKey) {
       try {
         console.warn("[NannyAI] Trying Gemini fallback.");
 
-        const reply = await askGemini(
+        aiReply = await askGemini(
           messages,
           systemInstruction,
           geminiKey,
         );
 
         console.log("[NannyAI] Answer provided by Gemini.");
-
-        return { reply };
       } catch (error) {
         console.error("[NannyAI] Gemini fallback failed", {
-          error:
-            error instanceof Error ? error.message : String(error),
+          error: error instanceof Error ? error.message : String(error),
         });
       }
     }
 
-    return {
-      reply:
-        "Nanny AI is temporarily unavailable. Please try again shortly.",
-    };
+    if (!aiReply) {
+      try {
+        await finishNannyQuestion(reservationId, false);
+      } catch (error) {
+        console.error("[NannyAI] Failed to release reservation", error);
+      }
+
+      return {
+        reply: "Nanny AI is temporarily unavailable. Please try again shortly.",
+      };
+    }
+
+    try {
+      const completed = await finishNannyQuestion(reservationId, true);
+
+      if (!completed) {
+        return {
+          reply: "Your question could not be finalized. Please try again.",
+        };
+      }
+    } catch (error) {
+      console.error("[NannyAI] Could not finalize successful answer", error);
+
+      return {
+        reply: "Unable to save your question usage. Please try again shortly.",
+      };
+    }
+
+    return { reply: aiReply };
   });
+
+
+
+

@@ -6,6 +6,8 @@ import { Crown, Loader2, PlayCircle, Send, Sparkles, WifiOff } from "lucide-reac
 import remarkGfm from "remark-gfm";
 import ReactMarkdown from "react-markdown";
 import { askBabyAi } from "@/lib/ai.functions";
+import { createAdmobRewardRequest } from "@/lib/admob-rewards.functions";
+import { showRewardedAd } from "@/lib/admob";
 import { buildBabyContext } from "@/lib/babyContext";
 import { useHydrated, useOnline } from "@/hooks/useOnline";
 import { cn } from "@/lib/utils";
@@ -15,13 +17,13 @@ import { FREE_AI_DAILY, usePro } from "@/hooks/usePro";
 export const Route = createFileRoute("/ask")({
   head: () => ({
     meta: [
-      { title: "Nanny AI — Nestling" },
+      { title: "Nanny AI â€” Nestling" },
       {
         name: "description",
         content:
           "Ask Nanny AI routine baby care questions about feeding, sleep, diapers and soothing.",
       },
-      { property: "og:title", content: "Nanny AI — Nestling" },
+      { property: "og:title", content: "Nanny AI â€” Nestling" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       {
@@ -39,12 +41,12 @@ type Msg = { role: "user" | "assistant"; content: string };
 let cachedMessages: Msg[] = [];
 
 const CHIPS = [
-  { label: "🍼 Last feed time & amount", prompt: "When did baby last eat, and how much?" },
-  { label: "⏱️ Current wake window", prompt: "How long has baby been awake in the current wake window?" },
-  { label: "📊 Today's daily summary", prompt: "Give me a summary of today's feeds, diapers and sleep." },
-  { label: "😴 Nap schedule for today", prompt: "Based on the last 3 days of sleep and baby's age, suggest a nap schedule for the rest of today." },
-  { label: "🌙 Night sleep review", prompt: "Review the last 3 nights of sleep. Any patterns, and what could help longer stretches?" },
-  { label: "💡 Fussy baby soothing tips", prompt: "Baby is fussy. What soothing tips could help right now, given today's log?" },
+  { label: "ðŸ¼ Last feed time & amount", prompt: "When did baby last eat, and how much?" },
+  { label: "â±ï¸ Current wake window", prompt: "How long has baby been awake in the current wake window?" },
+  { label: "ðŸ“Š Today's daily summary", prompt: "Give me a summary of today's feeds, diapers and sleep." },
+  { label: "ðŸ˜´ Nap schedule for today", prompt: "Based on the last 3 days of sleep and baby's age, suggest a nap schedule for the rest of today." },
+  { label: "ðŸŒ™ Night sleep review", prompt: "Review the last 3 nights of sleep. Any patterns, and what could help longer stretches?" },
+  { label: "ðŸ’¡ Fussy baby soothing tips", prompt: "Baby is fussy. What soothing tips could help right now, given today's log?" },
 ];
 
 function Greeting() {
@@ -73,9 +75,39 @@ function AskPage() {
   const offline = hydrated && !online;
 
   const ask = useServerFn(askBabyAi);
-  const { baby } = useFamily();
-  const { isPro, openUpgrade, consumeQuestion, aiQuestionsRemaining, watchRewardedAd, grantAiBonus } = usePro();
+  const createRewardRequest = useServerFn(createAdmobRewardRequest);
+  const { baby, user } = useFamily();
+  const { isPro, openUpgrade, refreshQuota, aiQuestionsRemaining, bonusClaimedToday } = usePro();
   const outOfQuestions = !isPro && aiQuestionsRemaining === 0;
+
+  const prepareNannyReward = async (userId: string) => {
+    try {
+      const result = await createRewardRequest();
+
+      if (!result.token) {
+        throw new Error("Reward token missing");
+      }
+
+      const rewarded = await showRewardedAd({
+        userId,
+        customData: result.token,
+      });
+
+      if (rewarded) {
+        // Google must confirm the reward through the server callback.
+        // Never grant AI questions directly from the phone.
+        for (let attempt = 0; attempt < 15; attempt++) {
+          const verified = await refreshQuota();
+          if (verified) break;
+          if (attempt < 14) {
+            await new Promise<void>((resolve) => setTimeout(resolve, 2000));
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Unable to prepare Nanny AI reward:", error);
+    }
+  };
 
   const [messages, setMessagesState] = useState<Msg[]>(() => cachedMessages);
 
@@ -101,30 +133,13 @@ function AskPage() {
   const send = async (text: string) => {
     const question = text.trim();
 
-    if (!question || sendingRef.current || offline || outOfQuestions) return;
+    if (!question || sendingRef.current || offline) return;
 
     sendingRef.current = true;
     setLoading(true);
     setLimitError("");
 
     try {
-      let allowed = false;
-
-      try {
-        allowed = await consumeQuestion();
-      } catch (err) {
-        console.error("Nanny AI question allowance check failed:", err);
-        setLimitError("Unable to verify your question allowance. Please try again.");
-        return;
-      }
-
-      if (!allowed) {
-        setLimitError(
-          "No free questions available right now. Please check your allowance or upgrade to PRO."
-        );
-        return;
-      }
-
       const next: Msg[] = [...messages, { role: "user", content: question }];
       setMessages(next);
       setInput("");
@@ -154,6 +169,12 @@ function AskPage() {
         ]);
       }
     } finally {
+      try {
+        await refreshQuota();
+      } catch (error) {
+        console.warn("Unable to refresh Nanny AI allowance:", error);
+      }
+
       sendingRef.current = false;
       setLoading(false);
     }
@@ -188,7 +209,7 @@ function AskPage() {
 
         {loading && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Thinking…
+            <Loader2 className="h-4 w-4 animate-spin" /> Thinkingâ€¦
           </div>
         )}
 
@@ -219,14 +240,14 @@ function AskPage() {
             </p>
 
             <div className="mt-3 grid gap-2">
-              <button
+{!bonusClaimedToday && (              <button
                 type="button"
-                onClick={() => watchRewardedAd(grantAiBonus)}
+                onClick={() => user && prepareNannyReward(user.id)}
                 className="flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-background px-4 text-sm font-semibold transition active:scale-[0.98]"
               >
                 <PlayCircle className="h-5 w-5 text-lilac-foreground" />
                 Watch 1 quick ad (+3 questions)
-              </button>
+              </button>)}
 
               <button
                 type="button"
@@ -234,7 +255,7 @@ function AskPage() {
                 className="flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-lilac px-4 text-sm font-bold text-lilac-foreground transition active:scale-[0.98]"
               >
                 <Crown className="h-5 w-5" />
-                Get Unlimited with PRO
+                Get 20 Daily Questions with PRO
               </button>
             </div>
           </div>
@@ -242,8 +263,8 @@ function AskPage() {
           !isPro &&
           aiQuestionsRemaining !== null && (
             <p className="mb-2 text-center text-xs font-medium text-muted-foreground">
-              {aiQuestionsRemaining} of{" "}
-              {Math.max(FREE_AI_DAILY, aiQuestionsRemaining)} free questions remaining today
+              {aiQuestionsRemaining}{" "}
+              free questions remaining today
             </p>
           )
         )}
@@ -253,7 +274,7 @@ function AskPage() {
             <button
               key={c.label}
               type="button"
-              disabled={offline || loading || outOfQuestions}
+              disabled={offline || loading}
               onClick={() => void send(c.prompt)}
               className="min-h-10 shrink-0 whitespace-nowrap rounded-full border border-lilac-foreground/15 bg-tummy-tint px-4 text-sm font-semibold shadow-soft transition hover:bg-lilac active:scale-[0.98] disabled:opacity-50"
             >
@@ -273,13 +294,12 @@ function AskPage() {
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            disabled={offline || outOfQuestions || loading}
+            disabled={offline || loading}
             rows={1}
             placeholder={
               offline
-                ? "Offline — AI unavailable"
-                : outOfQuestions
-                ? "Daily free questions used"
+                ? "Offline â€” AI unavailable"
+
                 : "Ask Nanny AI anything..."
             }
             className="max-h-32 min-h-11 flex-1 resize-none bg-transparent px-2 py-2.5 text-base outline-none placeholder:text-muted-foreground disabled:opacity-60"
@@ -287,7 +307,7 @@ function AskPage() {
 
           <button
             type="submit"
-            disabled={offline || loading || outOfQuestions || input.trim().length === 0}
+            disabled={offline || loading || input.trim().length === 0}
             aria-label="Send"
             className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-lilac text-lilac-foreground shadow-soft ring-1 ring-lilac-foreground/20 transition active:scale-90 disabled:opacity-40"
           >
@@ -302,3 +322,12 @@ function AskPage() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+

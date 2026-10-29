@@ -1,8 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { BookOpen, Copy, CreditCard, Crown, FileText, Lock, LogOut, PlayCircle, Sparkles, Users } from "lucide-react";
 import { usePro } from "@/hooks/usePro";
-import { createPortalSession } from "@/lib/payments.functions";
-import { getStripeEnvironment } from "@/lib/stripe";
+import { Capacitor } from "@capacitor/core";
 import { exportDoctorPdf, exportLogsCsv } from "@/lib/exportPdf";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -314,30 +313,25 @@ function FamilyPage() {
     </div>
   );
 }
-
 function ProSection({ babyName }: { babyName: string | null }) {
-  const { isPro, ownSub, openUpgrade, watchRewardedAd, testPro, canTestPro, setTestPro } = usePro();
-  const lifetime = ownSub?.price_id === "pro_lifetime";
-  const [busy, setBusy] = useState(false);
+  const {
+    isPro,
+    openUpgrade,
+    watchRewardedAd,
+    testPro,
+    canTestPro,
+    setTestPro,
+  } = usePro();
+
   const [adSheet, setAdSheet] = useState(false);
 
-  const manage = async () => {
-    setBusy(true);
-    try {
-      if (ownSub) {
-        const res = await createPortalSession({
-          data: { environment: getStripeEnvironment(), returnUrl: window.location.href },
-        });
-        if ("error" in res) throw new Error(res.error);
-        window.open(res.url, "_blank");
-      } else {
-        window.open("https://play.google.com/store/account/subscriptions", "_blank");
-      }
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Couldn't open subscription settings");
-    } finally {
-      setBusy(false);
-    }
+  const manage = () => {
+    const url =
+      Capacitor.getPlatform() === "ios"
+        ? "https://apps.apple.com/account/subscriptions"
+        : "https://play.google.com/store/account/subscriptions";
+
+    window.open(url, "_blank");
   };
 
   const downloadPdf = async () => {
@@ -357,52 +351,71 @@ function ProSection({ babyName }: { babyName: string | null }) {
     }
   };
 
-  const ends = ownSub?.current_period_end
-    ? new Date(ownSub.current_period_end).toLocaleDateString()
-    : null;
-
   return (
     <section className="space-y-3 rounded-3xl border border-border bg-card p-5 shadow-soft">
       <div className="flex items-center gap-2">
         <Sparkles className="h-5 w-5 text-primary" />
-        <h2 className="font-display text-lg font-bold">Nestling Pro</h2>
+        <h2 className="font-display text-lg font-bold">
+          Nestling Pro
+        </h2>
       </div>
+
       <p className="text-sm text-muted-foreground">
         {isPro
-          ? lifetime
-            ? "Lifetime PRO — thank you!"
-            : ownSub
-            ? ownSub.status === "trialing"
-              ? `Free trial active${ends ? ` · first charge ${ends}` : ""}`
-              : ownSub.cancel_at_period_end
-                ? `Pro until ${ends}`
-                : `Pro active${ends ? ` · renews ${ends}` : ""}`
-            : testPro
+          ? canTestPro && testPro
             ? "PRO switched on in test mode."
             : "PRO active — thank you for your support!"
-          : "Unlimited Nanny AI, all sleep sounds and doctor-ready reports."}
+          : "20 Nanny AI questions daily, all sleep sounds and doctor-ready reports."}
       </p>
 
-      <Button variant="secondary" onClick={onExportPdfClick} className="h-12 w-full justify-start text-base">
-        <FileText /> Doctor PDF export (last 7 days)
-        {!isPro && <Lock className="ml-auto text-muted-foreground" />}
+      <Button
+        variant="secondary"
+        onClick={onExportPdfClick}
+        className="h-12 w-full justify-start text-base"
+      >
+        <FileText />
+        Doctor PDF export (last 7 days)
+        {!isPro && (
+          <Lock className="ml-auto text-muted-foreground" />
+        )}
       </Button>
-      <Button variant="secondary" onClick={() => void exportLogsCsv()} className="h-12 w-full justify-start text-base">
-        <FileText /> Export Logs (CSV)
+
+      <Button
+        variant="secondary"
+        onClick={() => void exportLogsCsv()}
+        className="h-12 w-full justify-start text-base"
+      >
+        <FileText />
+        Export Logs (CSV)
       </Button>
 
       {isPro ? (
-        <Button variant="outline" disabled={busy} onClick={manage} className="h-12 w-full text-base">
-          <CreditCard /> Manage Subscription
-        </Button>
+        Capacitor.isNativePlatform() &&
+        !(canTestPro && testPro) ? (
+          <Button
+            variant="outline"
+            onClick={manage}
+            className="h-12 w-full text-base"
+          >
+            <CreditCard />
+            Manage Subscription
+          </Button>
+        ) : null
       ) : (
-        <Button onClick={() => openUpgrade()} className="h-12 w-full text-base">
+        <Button
+          onClick={() => openUpgrade()}
+          className="h-12 w-full text-base"
+        >
           See PRO plans
         </Button>
       )}
 
       {canTestPro && testPro && (
-        <Button variant="ghost" onClick={() => setTestPro(false)} className="h-10 w-full text-xs text-muted-foreground">
+        <Button
+          variant="ghost"
+          onClick={() => setTestPro(false)}
+          className="h-10 w-full text-xs text-muted-foreground"
+        >
           Test mode: switch PRO off
         </Button>
       )}
@@ -410,9 +423,14 @@ function ProSection({ babyName }: { babyName: string | null }) {
       <Dialog open={adSheet} onOpenChange={setAdSheet}>
         <DialogContent className="rounded-3xl sm:max-w-sm">
           <DialogHeader className="text-left">
-            <DialogTitle className="font-display text-xl">Export Doctor PDF</DialogTitle>
-            <DialogDescription>Choose how you'd like to unlock this report.</DialogDescription>
+            <DialogTitle className="font-display text-xl">
+              Export Doctor PDF
+            </DialogTitle>
+            <DialogDescription>
+              Choose how you'd like to unlock this report.
+            </DialogDescription>
           </DialogHeader>
+
           <div className="space-y-2.5">
             <button
               type="button"
@@ -424,22 +442,33 @@ function ProSection({ babyName }: { babyName: string | null }) {
             >
               <PlayCircle className="h-7 w-7 shrink-0 text-primary" />
               <span>
-                <span className="block font-semibold">Watch a quick ad</span>
-                <span className="block text-xs text-muted-foreground">Free single export</span>
+                <span className="block font-semibold">
+                  Watch a quick ad
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  Free single export
+                </span>
               </span>
             </button>
+
             <button
               type="button"
               onClick={() => {
                 setAdSheet(false);
-                openUpgrade("The Doctor PDF export is part of Nestling Pro.");
+                openUpgrade(
+                  "The Doctor PDF export is part of Nestling Pro."
+                );
               }}
               className="flex w-full items-center gap-3 rounded-2xl border border-primary bg-primary/10 p-4 text-left transition active:scale-[0.98]"
             >
               <Crown className="h-7 w-7 shrink-0 text-primary" />
               <span>
-                <span className="block font-semibold">Upgrade to PRO</span>
-                <span className="block text-xs text-muted-foreground">Instant unlimited exports</span>
+                <span className="block font-semibold">
+                  Upgrade to PRO
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  Instant unlimited exports
+                </span>
               </span>
             </button>
           </div>

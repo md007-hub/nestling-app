@@ -44,6 +44,7 @@ function time(ts: number) {
 }
 
 export function Timeline() {
+  const [selectedNote, setSelectedNote] = useState<LogEntry | null>(null);
   const { baby } = useFamily();
   const logs = useLiveQuery(
     () => db.logs.where("timestamp").aboveOrEqual(startOfToday()).toArray().then((l) => l.sort((a, b) => startTs(b) - startTs(a))),
@@ -88,8 +89,8 @@ export function Timeline() {
                   <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold">{log.value}</p>
                   <p className="text-xs text-muted-foreground">
-                    {startTs(log) !== log.timestamp ? `${time(startTs(log))}â€“${time(log.timestamp)}` : time(log.timestamp)}
-                    {log.notes ? ` Â· ${log.notes}` : ""}
+                    {startTs(log) !== log.timestamp ? `${time(startTs(log))}\u2013${time(log.timestamp)}` : time(log.timestamp)}
+                    {log.notes ? ` \u00B7 ${log.notes}` : ""}
                     {log.sync_status === "pending" && (
                       <span className="ml-1.5 inline-flex items-center gap-1 text-offline" title="Waiting to sync">
                         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-offline" />
@@ -113,7 +114,14 @@ export function Timeline() {
           })}
         </ul>
       )}
+      <NoteDialog
+        note={selectedNote}
+        open={selectedNote !== null}
+        onOpenChange={(open) => { if (!open) setSelectedNote(null); }}
+      />
     </section>
   );
 }
+
+
 

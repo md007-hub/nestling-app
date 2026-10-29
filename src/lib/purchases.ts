@@ -1,10 +1,23 @@
-import { Purchases, PurchasesPackage, CustomerInfo } from '@revenuecat/purchases-capacitor';
+﻿import { Purchases, PurchasesPackage, CustomerInfo } from '@revenuecat/purchases-capacitor';
 import { Capacitor } from '@capacitor/core';
 
 const REVENUECAT_APPLE_KEY = import.meta.env.VITE_REVENUECAT_APPLE_KEY || 'appl_placeholder_api_key';
 const REVENUECAT_GOOGLE_KEY = 'goog_JiDPWtsleJaGHEHYslElOicJtCe';
 
+let purchasesReady: Promise<void> | null = null;
+
 export const initPurchases = async (userId?: string) => {
+  if (purchasesReady) return purchasesReady;
+
+  purchasesReady = configurePurchases(userId).catch((error) => {
+    purchasesReady = null;
+    throw error;
+  });
+
+  return purchasesReady;
+};
+
+const configurePurchases = async (userId?: string) => {
   if (!Capacitor.isNativePlatform()) return;
 
   const apiKey =
@@ -18,7 +31,7 @@ export const initPurchases = async (userId?: string) => {
       appUserID: userId ?? null,
     });
   } catch (error) {
-    console.error('Error configuring RevenueCat:', error);
+    console.error('Error configuring RevenueCat:', error); throw error;
   }
 };
 
@@ -59,6 +72,26 @@ export const checkEntitlement = (customerInfo: CustomerInfo, entitlementId = 'pr
   return typeof customerInfo?.entitlements?.active?.[entitlementId] !== 'undefined';
 };
 
+export const getVerifiedCustomerInfo = async (userId: string): Promise<CustomerInfo | null> => {
+  if (!Capacitor.isNativePlatform() || !userId) return null;
+
+  try {
+    await syncPurchaseUser(userId);
+    const { customerInfo } = await Purchases.getCustomerInfo();
+    const { appUserID } = await Purchases.getAppUserID();
+
+    if (appUserID !== userId) {
+      console.warn("RevenueCat account does not match signed-in parent");
+      return null;
+    }
+
+    return customerInfo;
+  } catch (error) {
+    console.error("RevenueCat verification failed:", error);
+    return null;
+  }
+};
+
 export const getCustomerInfo = async (): Promise<CustomerInfo | null> => {
   if (!Capacitor.isNativePlatform()) return null;
   try {
@@ -69,3 +102,28 @@ export const getCustomerInfo = async (): Promise<CustomerInfo | null> => {
     return null;
   }
 };
+
+
+export async function syncPurchaseUser(userId: string | null) {
+  if (!Capacitor.isNativePlatform()) return;
+
+  try {
+    await initPurchases();
+    if (userId) {
+      await Purchases.logIn({ appUserID: userId });
+    } else {
+      const { customerInfo } = await Purchases.getCustomerInfo();
+      if (!customerInfo.originalAppUserId.startsWith("$RCAnonymousID:")) {
+        await Purchases.logOut();
+      }
+    }
+  } catch (error) {
+    console.error("RevenueCat account sync failed:", error);
+  }
+}
+
+
+
+
+
+

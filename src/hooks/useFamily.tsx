@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { supabase } from "@/integrations/supabase/client";
 import { setLocalChangeListener } from "@/lib/db";
 import { subscribeBaby, syncNow } from "@/lib/sync";
+import { syncPurchaseUser } from "@/lib/purchases";
 
 export type Baby = { id: string; name: string; invite_code: string; birth_date: string | null; date_kind: string; gender: string | null; birth_weight_kg: number | null; solids_enabled: boolean; milestones_enabled: boolean; photo_url: string | null };
 
@@ -76,6 +77,12 @@ export function FamilyProvider({ children }: { children: ReactNode }) {
     }
   }, [user, refresh]);
 
+  useEffect(() => {
+    if (!ready) return;
+    syncPurchaseUser(user?.id ?? null).catch((error) => {
+      console.error("Purchase account synchronization failed:", error);
+    });
+  }, [ready, user?.id]);
   // Sync + realtime for the active baby.
   useEffect(() => {
     if (!babyId) {
@@ -121,3 +128,4 @@ export function FamilyProvider({ children }: { children: ReactNode }) {
 export function useFamily() {
   return useContext(Ctx) ?? fallback;
 }
+

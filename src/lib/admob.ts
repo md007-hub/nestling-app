@@ -1,4 +1,4 @@
-import {
+﻿import {
   AdMob,
   AdmobConsentStatus,
   RewardAdOptions,
@@ -48,7 +48,7 @@ export const hideBannerAd = async () => {
   return;
 };
 
-export const showRewardedAd = async (): Promise<boolean> => {
+export const showRewardedAd = async (ssv?: { userId: string; customData: string }): Promise<boolean> => {
   if (!Capacitor.isNativePlatform()) {
     return true;
   }
@@ -61,6 +61,7 @@ export const showRewardedAd = async (): Promise<boolean> => {
         ? 'ca-app-pub-3940256099942544/1712485313'
         : 'ca-app-pub-3940256099942544/5224354917',
     isTesting: true,
+    ...(ssv ? { ssv } : {}),
   };
 
   return new Promise<boolean>(async (resolve) => {

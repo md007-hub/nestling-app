@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { Link } from "@tanstack/react-router";
 import { Ban, Check, FileText, Loader2, RefreshCw, Sparkles, Users } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -10,13 +10,13 @@ import { cn } from "@/lib/utils";
 import type { PurchasesPackage } from "@revenuecat/purchases-capacitor";
 
 const PERKS = [
-  { Icon: Sparkles, title: "Unlimited AI Nanny Chat", sub: "Instant 24/7 answers" },
+  { Icon: Sparkles, title: "20 Nanny AI Questions Daily", sub: "Helpful parenting guidance every day" },
   { Icon: FileText, title: "Unlimited Doctor PDF Exports", sub: "Ready for every pediatric checkup" },
   { Icon: Users, title: "Unlimited Caregiver Sync", sub: "Invite nannies, partners & family" },
   { Icon: Ban, title: "100% Ad-Free experience", sub: "No sponsor messages, ever" },
 ];
 
-type PlanId = "pro_monthly" | "pro_yearly" | "pro_lifetime";
+type PlanId = "pro_monthly" | "pro_yearly";
 
 interface DisplayPlan {
   id: PlanId;
@@ -29,9 +29,8 @@ interface DisplayPlan {
 }
 
 const DEFAULT_PLANS: DisplayPlan[] = [
-  { id: "pro_monthly", title: "Monthly", price: "$5.99", per: "/ mo", note: "7-day free trial" },
-  { id: "pro_yearly", title: "Annual", price: "$34.99", per: "/ yr", note: "Save 50%", badge: "Best Value" },
-  { id: "pro_lifetime", title: "Lifetime", price: "$69.99", per: "once", note: "One-time purchase" },
+  { id: "pro_monthly", title: "Monthly", price: "A$7.99", per: "/ mo", note: "7-day free trial" },
+  { id: "pro_yearly", title: "Annual", price: "A$59.99", per: "/ yr", note: "Save 37%", badge: "Best Value" },
 ];
 
 export function UpgradeModal({
@@ -66,7 +65,6 @@ export function UpgradeModal({
               const id = pkg.identifier.toLowerCase();
               if (defaultPlan.id === "pro_monthly") return id.includes("month");
               if (defaultPlan.id === "pro_yearly") return id.includes("year") || id.includes("annual");
-              if (defaultPlan.id === "pro_lifetime") return id.includes("life");
               return false;
             });
 
@@ -158,7 +156,7 @@ export function UpgradeModal({
           ))}
         </ul>
 
-        <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Plan">
+        <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Plan">
           {plans.map((p) => (
             <button
               key={p.id}
@@ -190,7 +188,6 @@ export function UpgradeModal({
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {selectedPlan === "pro_monthly" && "Start 7-Day Free Trial"}
             {selectedPlan === "pro_yearly" && "Upgrade to PRO Annual"}
-            {selectedPlan === "pro_lifetime" && "Get Lifetime Access"}
           </Button>
         ) : (
           <Button asChild className="h-14 w-full text-base font-semibold" onClick={() => onOpenChange(false)}>

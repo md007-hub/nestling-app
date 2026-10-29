@@ -1,5 +1,8 @@
+
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
+import { Capacitor } from "@capacitor/core";
+import { liveQuery } from "dexie";
 import { Baby, LogOut, User, UserPlus, Users, Moon, Sparkles, Sun, Waves, Wifi, WifiOff, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useHydrated, useOnline } from "@/hooks/useOnline";
@@ -8,7 +11,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useFamily } from "@/hooks/useFamily";
 import { usePro } from "@/hooks/usePro";
-import { checkReminders, notificationsSupported } from "@/lib/reminders";
+import { db } from "@/lib/db";
+import { checkReminders, notificationsSupported, scheduleReminders } from "@/lib/reminders";
 
 function SignInChip() {
   return (
@@ -91,7 +95,7 @@ function AccountMenu() {
 }
 
 function FamilyChip() {
-  const { ready, user, baby, memberCount } = useFamily();
+  const { ready, user } = useFamily();
   if (!ready) return null;
   if (!user) return <SignInChip />;
   return <AccountMenu />;
@@ -100,6 +104,7 @@ function FamilyChip() {
 function HeaderTitle() {
   const { user } = useFamily();
   const { isPro, openUpgrade } = usePro();
+
   return (
     <p className="flex items-center gap-1.5 font-display text-lg font-bold leading-none">
       <span>Nestling</span>
@@ -190,64 +195,129 @@ const tabs = [
 export function AppShell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const { ready, user, baby } = useFamily();
+
   useEffect(() => {
     void registerAppSW();
   }, []);
+
   useEffect(() => {
-    if (!baby || !notificationsSupported()) return;
-    const run = () => void checkReminders(baby).catch(() => {});
-    run();
-    const t = setInterval(run, 60000);
-    return () => clearInterval(t);
+    if (!notificationsSupported()) return;
+
+    if (!Capacitor.isNativePlatform()) {
+      if (!baby) return;
+
+      const run = () => void checkReminders(baby).catch(() => {});
+      run();
+
+      const timer = setInterval(run, 60000);
+      return () => clearInterval(timer);
+    }
+
+    let active = true;
+    let running = false;
+    let needsUpdate = false;
+
+    const refresh = async () => {
+      needsUpdate = true;
+      if (running) return;
+
+      running = true;
+
+      try {
+        while (active && needsUpdate) {
+          needsUpdate = false;
+          await scheduleReminders(baby);
+        }
+      } catch (error) {
+        console.error("Failed to update native reminders:", error);
+      } finally {
+        running = false;
+      }
+    };
+
+    const subscription = liveQuery(() =>
+      db.logs
+        .where("timestamp")
+        .aboveOrEqual(Date.now() - 2 * 86400000)
+        .filter((log) => log.type === "feed" || log.type === "sleep")
+        .toArray(),
+    ).subscribe({
+      next: () => {
+        if (active) void refresh();
+      },
+      error: (error) => {
+        console.error("Reminder log observer failed:", error);
+      },
+    });
+
+    void refresh();
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, [baby]);
+
   const navigate = useNavigate();
   const guarded = pathname.startsWith("/sounds") || pathname.startsWith("/ask");
+
   useEffect(() => {
-    if (ready && !user && guarded) navigate({ to: "/", replace: true });
+    if (ready && !user && guarded) {
+      navigate({ to: "/", replace: true });
+    }
   }, [ready, user, guarded, navigate]);
+
   const isIntroduction =
     pathname === "/tour" ||
     pathname.startsWith("/auth") ||
     pathname.startsWith("/onboarding") ||
     pathname.startsWith("/reset-password") ||
     (pathname === "/" && (!ready || !user));
+
   if (guarded && (!ready || !user)) {
     return <div className="mx-auto min-h-[100dvh] w-full max-w-md bg-background" />;
   }
+
   return (
     <div className="mx-auto flex min-h-[100dvh] w-full max-w-md flex-col bg-background">
-      {!isIntroduction && <header className="sticky top-0 z-40 pt-[max(env(safe-area-inset-top),24px)] isolate flex items-center justify-between gap-3 border-b border-border/70 bg-background/95 px-4 py-3  shadow-soft backdrop-blur-md supports-[backdrop-filter]:bg-background/85">
-        <div className="flex min-w-0 items-center gap-3">
-          <NestlingLogo />
-          <div className="flex min-w-0 flex-col items-start justify-center gap-1">
-            <HeaderTitle />
-            <StatusBadge />
+      {!isIntroduction && (
+        <header className="sticky top-0 z-40 pt-[max(env(safe-area-inset-top),24px)] isolate flex items-center justify-between gap-3 border-b border-border/70 bg-background/95 px-4 py-3 shadow-soft backdrop-blur-md supports-[backdrop-filter]:bg-background/85">
+          <div className="flex min-w-0 items-center gap-3">
+            <NestlingLogo />
+            <div className="flex min-w-0 flex-col items-start justify-center gap-1">
+              <HeaderTitle />
+              <StatusBadge />
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <FamilyChip />
-          <ThemeToggle />
-        </div>
-      </header>}
+          <div className="flex items-center gap-2">
+            <FamilyChip />
+            <ThemeToggle />
+          </div>
+        </header>
+      )}
 
-      <main className={`relative z-0 flex-1 px-4 pt-4 ${isIntroduction ? "pb-4" : "pb-28"}`}>{children}</main>
+      <main className={`relative z-0 flex-1 px-4 pt-4 ${isIntroduction ? "pb-4" : "pb-28"}`}>
+        {children}
+      </main>
 
-      {!isIntroduction && <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-md border-t border-border/60 bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
-        <div className="grid grid-cols-3">
-          {tabs.map(({ to, label, icon: Icon }) => (
-            <Link
-              key={to}
-              to={to}
-              activeOptions={{ exact: to === "/" }}
-              className="flex flex-col items-center gap-1 py-3 text-xs font-medium text-muted-foreground transition-colors"
-              activeProps={{ className: "text-primary" }}
-            >
-              <Icon className="h-6 w-6" />
-              {label}
-            </Link>
-          ))}
-        </div>
-      </nav>}
+      {!isIntroduction && (
+        <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-md border-t border-border/60 bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+          <div className="grid grid-cols-3">
+            {tabs.map(({ to, label, icon: Icon }) => (
+              <Link
+                key={to}
+                to={to}
+                activeOptions={{ exact: to === "/" }}
+                className="flex flex-col items-center gap-1 py-3 text-xs font-medium text-muted-foreground transition-colors"
+                activeProps={{ className: "text-primary" }}
+              >
+                <Icon className="h-6 w-6" />
+                {label}
+              </Link>
+            ))}
+          </div>
+        </nav>
+      )}
     </div>
   );
 }
