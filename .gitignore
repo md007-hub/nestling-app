@@ -33,3 +33,18 @@ dist-ssr
 *.keystore 
 *.keystore 
 *.jks 
+# Environment files and credentials
+.env
+.env.*
+!.env.example
+.dev.vars*
+
+# Local backups and temporary files
+*.bak
+*.backup.txt
+*.patch
+audio-backup/
+*.zip
+*-check.txt
+typescript-errors.txt
+nanny-ai-changes.txt
